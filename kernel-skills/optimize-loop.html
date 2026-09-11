@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<script>try{const t=localStorage.getItem('kernel-skills-theme');document.documentElement.dataset.theme=t==='light'||t==='dark'?t:(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light')}catch{document.documentElement.dataset.theme=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}</script>
+<meta name="description" content="优化循环 · Awesome Kernel Skills：GPU kernel 优化学习路径与 18 篇笔记。">
+<meta name="author" content="ZJLi2013 / awesome-kernel-skills">
+<title>优化循环 · Kernel Skills · 文章</title>
+<link rel="canonical" href="https://zx3xyy.github.io/articles/kernel-skills/optimize-loop.html">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230d1117'/%3E%3Cpath d='M9 7v18m2-9L23 7M11 16l12 9' stroke='%2358a6ff' stroke-width='3' fill='none'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="reader.css">
+<script src="theme.js" defer></script>
+</head>
+<body>
+<a class="skip" href="#main">跳到正文</a>
+<header class="topbar" lang="zh-CN"><a href="../">← 文章</a><a class="brand" href="index.html">Kernel Skills</a><a class="upstream" href="https://github.com/ZJLi2013/awesome-kernel-skills">原仓库 ↗</a><button class="theme-toggle" type="button" aria-label="切换深色模式" aria-pressed="false">深色</button></header>
+<div class="layout">
+<aside class="sidebar" lang="zh-CN"><p class="sidebar-label">学习目录 <span>18 篇</span></p><nav aria-label="学习目录"><a class="path-link "  href="index.html"><span>00</span> 学习路径</a><div class="nav-group"><p>优化方法</p><ol><li><a  href="tier1-block-tiling.html"><span>01</span>分块与线程配置</a></li><li><a  href="tier2-memory-access.html"><span>02</span>内存访问与层级</a></li><li><a  href="tier3-compute-fusion.html"><span>03</span>计算优化与融合</a></li><li><a  href="tier4-advanced-scheduling.html"><span>04</span>高级调度</a></li><li><a  href="tier5-arch-nvidia.html"><span>05</span>NVIDIA 架构</a></li><li><a  href="tier5-arch-amd-rocm.html"><span>06</span>AMD / ROCm 架构</a></li></ol></div><div class="nav-group"><p>算子实践</p><ol><li><a  href="gemm.html"><span>07</span>GEMM · 矩阵乘</a></li><li><a  href="flash-attention.html"><span>08</span>FlashAttention</a></li><li><a  href="fused-moe.html"><span>09</span>Fused MoE</a></li><li><a  href="softmax.html"><span>10</span>Softmax</a></li><li><a  href="rmsnorm.html"><span>11</span>RMSNorm</a></li><li><a  href="cross-entropy.html"><span>12</span>Cross-Entropy</a></li><li><a  href="rotary-embedding.html"><span>13</span>RoPE · 旋转位置编码</a></li></ol></div><div class="nav-group"><p>优化流程</p><ol><li><a class="current" aria-current="page" href="optimize-loop.html"><span>14</span>优化循环</a></li><li><a  href="profiling.html"><span>15</span>性能分析</a></li><li><a  href="bottleneck-diagnosis.html"><span>16</span>瓶颈诊断</a></li><li><a  href="verification.html"><span>17</span>正确性验证</a></li><li><a  href="benchmark.html"><span>18</span>基准测试</a></li></ol></div></nav></aside>
+<main id="main" tabindex="-1">
+<details class="mobile-nav" lang="zh-CN"><summary>学习目录 · 优化循环</summary><nav aria-label="移动端学习目录"><a class="path-link "  href="index.html"><span>00</span> 学习路径</a><div class="nav-group"><p>优化方法</p><ol><li><a  href="tier1-block-tiling.html"><span>01</span>分块与线程配置</a></li><li><a  href="tier2-memory-access.html"><span>02</span>内存访问与层级</a></li><li><a  href="tier3-compute-fusion.html"><span>03</span>计算优化与融合</a></li><li><a  href="tier4-advanced-scheduling.html"><span>04</span>高级调度</a></li><li><a  href="tier5-arch-nvidia.html"><span>05</span>NVIDIA 架构</a></li><li><a  href="tier5-arch-amd-rocm.html"><span>06</span>AMD / ROCm 架构</a></li></ol></div><div class="nav-group"><p>算子实践</p><ol><li><a  href="gemm.html"><span>07</span>GEMM · 矩阵乘</a></li><li><a  href="flash-attention.html"><span>08</span>FlashAttention</a></li><li><a  href="fused-moe.html"><span>09</span>Fused MoE</a></li><li><a  href="softmax.html"><span>10</span>Softmax</a></li><li><a  href="rmsnorm.html"><span>11</span>RMSNorm</a></li><li><a  href="cross-entropy.html"><span>12</span>Cross-Entropy</a></li><li><a  href="rotary-embedding.html"><span>13</span>RoPE · 旋转位置编码</a></li></ol></div><div class="nav-group"><p>优化流程</p><ol><li><a class="current" aria-current="page" href="optimize-loop.html"><span>14</span>优化循环</a></li><li><a  href="profiling.html"><span>15</span>性能分析</a></li><li><a  href="bottleneck-diagnosis.html"><span>16</span>瓶颈诊断</a></li><li><a  href="verification.html"><span>17</span>正确性验证</a></li><li><a  href="benchmark.html"><span>18</span>基准测试</a></li></ol></div></nav></details>
+<div class="page-meta" lang="zh-CN"><span>优化流程</span><span>14 / 18</span></div>
+<div class="source-note" lang="zh-CN">原文：<a href="https://github.com/ZJLi2013/awesome-kernel-skills/blob/aba7662286ee19df68ce94cb7d363554f7157f0a/skills/system/optimize-loop/SKILL.md">ZJLi2013 / skills/system/optimize-loop/SKILL.md</a><span>原文内容保留 · HTML 阅读版</span></div>
+<details class="outline"><summary>本页目录 <span>17 个章节</span></summary><ol><li class="depth-2"><a href="#overview">Overview</a></li><li class="depth-2"><a href="#the-loop">The Loop</a></li><li class="depth-2"><a href="#configuration">Configuration</a></li><li class="depth-2"><a href="#phase-details">Phase Details</a></li><li class="depth-3"><a href="#phase-0-baseline">Phase 0: Baseline</a></li><li class="depth-3"><a href="#phase-1-profile">Phase 1: Profile</a></li><li class="depth-3"><a href="#phase-2-diagnose">Phase 2: Diagnose</a></li><li class="depth-3"><a href="#phase-3-optimize">Phase 3: Optimize</a></li><li class="depth-3"><a href="#phase-4-verify">Phase 4: Verify</a></li><li class="depth-3"><a href="#phase-5-benchmark">Phase 5: Benchmark</a></li><li class="depth-3"><a href="#phase-6-decide">Phase 6: Decide</a></li><li class="depth-2"><a href="#optimization-log-format">Optimization Log Format</a></li><li class="depth-2"><a href="#guardrails">Guardrails</a></li><li class="depth-2"><a href="#when-profiling-is-not-available">When Profiling Is Not Available</a></li><li class="depth-2"><a href="#agent-instructions">Agent Instructions</a></li><li class="depth-2"><a href="#relationship-to-other-skills">Relationship to Other Skills</a></li><li class="depth-2"><a href="#references">References</a></li></ol></details>
+<article class="prose" aria-label="Iterative Kernel Optimization Loop"><h1 id="iterative-kernel-optimization-loop">Iterative Kernel Optimization Loop</h1>
+<h2 id="overview">Overview</h2>
+<p>This skill is the <strong>orchestration layer</strong> that chains the other skills into an automated,
+iterative optimization cycle. It turns <code>awesome_kernel_skills</code> from a static knowledge
+collection into an <strong>agent-driven optimization engine</strong>, similar to
+<a href="https://github.com/RightNow-AI/autokernel">AutoKernel</a>&#39;s <code>program.md</code>.</p>
+<p>The agent (Cursor / Claude Code / Codex) acts as the execution engine -- this skill
+tells it <strong>what to do, in what order, and when to stop</strong>.</p>
+<h2 id="the-loop">The Loop</h2>
+<pre><code>                    ┌──────────────────────────────┐
+                    │  INPUT                        │
+                    │  - kernel source (.py)        │
+                    │  - target metric &amp; threshold  │
+                    │  - target GPU (nvidia/amd)    │
+                    └──────────────┬───────────────┘
+                                   ▼
+              ┌─── Phase 0: BASELINE ───────────────────┐
+              │  Run test_*.py → record baseline perf   │
+              │  If no test exists, create one first     │
+              └──────────────┬──────────────────────────┘
+                             ▼
+        ┌────────────────────────────────────────────┐
+        │  Phase 1: PROFILE                          │
+   ┌───▶│  Skill: profiling/SKILL.md                 │
+   │    │  Action: run NCU or rocprof                │
+   │    │  Output: metrics.json                      │
+   │    └──────────────┬─────────────────────────────┘
+   │                   ▼
+   │    ┌────────────────────────────────────────────┐
+   │    │  Phase 2: DIAGNOSE                         │
+   │    │  Skill: bottleneck-diagnosis/SKILL.md      │
+   │    │  Action: classify memory/compute/latency   │
+   │    │  Output: bottleneck type + tier priority    │
+   │    └──────────────┬─────────────────────────────┘
+   │                   ▼
+   │    ┌────────────────────────────────────────────┐
+   │    │  Phase 3: OPTIMIZE                         │
+   │    │  Skills: tier1~5 SKILL.md (by priority)    │
+   │    │  Action: apply ONE optimization at a time  │
+   │    │  Rule: modify kernel, keep changes small   │
+   │    └──────────────┬─────────────────────────────┘
+   │                   ▼
+   │    ┌────────────────────────────────────────────┐
+   │    │  Phase 4: VERIFY                           │
+   │    │  Skill: verification/SKILL.md              │
+   │    │  Action: run test → correctness check      │
+   │    │  If FAIL → revert change, try next tier    │
+   │    └──────────────┬─────────────────────────────┘
+   │                   ▼
+   │    ┌────────────────────────────────────────────┐
+   │    │  Phase 5: BENCHMARK                        │
+   │    │  Skill: benchmark/SKILL.md                 │
+   │    │  Action: measure TFLOPS or GBps            │
+   │    │  Compare vs previous iteration             │
+   │    └──────────────┬─────────────────────────────┘
+   │                   ▼
+   │    ┌────────────────────────────────────────────┐
+   │    │  Phase 6: DECIDE                           │
+   │    │  - Target met?          → DONE, log result │
+   │    │  - Perf improved?       → log, continue    │
+   │    │  - Perf regressed?      → revert, try next │
+   │    │  - All tiers exhausted? → DONE, log best   │
+   │    │  - Max iterations hit?  → DONE, log best   │
+   │    └──────────────┬─────────────────────────────┘
+   │                   │ not done
+   └───────────────────┘
+</code></pre>
+<h2 id="configuration">Configuration</h2>
+<p>Before starting the loop, establish these parameters:</p>
+<pre><code class="language-yaml">kernel_path: skills/kernels/softmax/triton_template.py
+test_path: skills/kernels/softmax/test_softmax.py
+target_metric: gbps            # &quot;tflops&quot; or &quot;gbps&quot;
+target_value: 800              # target GBps (or TFLOPS)
+target_pct_of_peak: 0.70       # alternative: 70% of HBM peak
+max_iterations: 5              # stop after N optimization rounds
+gpu: auto                      # &quot;nvidia&quot;, &quot;amd&quot;, or &quot;auto&quot; (detect)
+</code></pre>
+<h2 id="phase-details">Phase Details</h2>
+<h3 id="phase-0-baseline">Phase 0: Baseline</h3>
+<ol>
+<li>Detect GPU via <a class="file-ref" href="https://github.com/ZJLi2013/awesome-kernel-skills/blob/aba7662286ee19df68ce94cb7d363554f7157f0a/scripts/detect_gpu.py"><code>scripts/detect_gpu.py</code></a></li>
+<li>Run <code>test_*.py --json</code> to get baseline correctness + performance</li>
+<li>Record in optimization log:</li>
+</ol>
+<pre><code class="language-markdown">## Iteration 0 (Baseline)
+- GPU: NVIDIA RTX 4090
+- Correctness: PASS
+- GBps: 1747.0
+- Target: 2000 GBps (70% of peak)
+- Gap: 253 GBps (12.6%)
+</code></pre>
+<h3 id="phase-1-profile">Phase 1: Profile</h3>
+<p>Read <a class="file-ref" href="profiling.html"><code>profiling/SKILL.md</code></a> and execute:</p>
+<ul>
+<li>NVIDIA: <code>ncu --set full -o iter{N}_profile python test_*.py</code></li>
+<li>AMD: <code>rocprof --stats python test_*.py</code></li>
+</ul>
+<p>Extract key metrics into structured form.</p>
+<h3 id="phase-2-diagnose">Phase 2: Diagnose</h3>
+<p>Read <a class="file-ref" href="bottleneck-diagnosis.html"><code>bottleneck-diagnosis/SKILL.md</code></a> and apply the flowchart:</p>
+<pre><code>IF dram_bw_pct high AND compute_pct low → memory-bound → Tier 1-2, then 3
+ELIF compute_pct high                   → compute-bound → Tier 3, then 1, 5
+ELIF both low                           → latency-bound → Tier 4, then 3
+</code></pre>
+<p>Output a <strong>tier priority list</strong>, e.g. <code>[tier2, tier1, tier3]</code>.</p>
+<h3 id="phase-3-optimize">Phase 3: Optimize</h3>
+<p>For the highest-priority <strong>untried</strong> tier:</p>
+<ol>
+<li>Read the corresponding <code>tier{N}/SKILL.md</code></li>
+<li>Read the kernel&#39;s own <a class="file-ref" href="optimize-loop.html"><code>SKILL.md</code></a> for kernel-specific guidance</li>
+<li>Apply <strong>ONE</strong> focused change (do not change multiple things at once)</li>
+<li>Common changes by tier:</li>
+</ol>
+<div class="table-scroll" tabindex="0" role="region" aria-label="表格，可横向滚动"><table>
+<thead>
+<tr>
+<th>Tier</th>
+<th>Typical Change</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>1</td>
+<td>Adjust BLOCK_SIZE, num_warps, GROUP_SIZE_M</td>
+</tr>
+<tr>
+<td>2</td>
+<td>Improve coalescing, add vectorized loads, fix bank conflicts</td>
+</tr>
+<tr>
+<td>3</td>
+<td>Fuse epilogue, switch to fast math intrinsics, fix accumulator dtype</td>
+</tr>
+<tr>
+<td>4</td>
+<td>Switch to persistent kernel, add Split-K</td>
+</tr>
+<tr>
+<td>5</td>
+<td>Use arch-specific features (TMA, WGMMA, MFMA shapes)</td>
+</tr>
+</tbody></table></div>
+<p><strong>Rule</strong>: Save a copy of the kernel before modifying so you can revert.</p>
+<h3 id="phase-4-verify">Phase 4: Verify</h3>
+<p>Run <code>test_*.py</code> (correctness portion only):</p>
+<ul>
+<li><strong>PASS</strong> → proceed to benchmark</li>
+<li><strong>FAIL</strong> → revert the change, mark this tier+change as &quot;tried/failed&quot;, pick next</li>
+</ul>
+<h3 id="phase-5-benchmark">Phase 5: Benchmark</h3>
+<p>Run <code>test_*.py --json</code> (full benchmark):</p>
+<ul>
+<li>Record TFLOPS or GBps</li>
+<li>Compare vs previous iteration</li>
+</ul>
+<h3 id="phase-6-decide">Phase 6: Decide</h3>
+<pre><code class="language-python">if current_metric &gt;= target_value:
+    status = &quot;TARGET_MET&quot;
+elif current_metric &gt; best_metric:
+    best_metric = current_metric
+    best_kernel = save_snapshot()
+    status = &quot;IMPROVED&quot;
+elif current_metric &lt;= prev_metric:
+    revert_to_previous()
+    mark_tier_change_as_tried()
+    status = &quot;REGRESSED&quot;
+
+if iteration &gt;= max_iterations or all_tiers_exhausted():
+    restore_best_kernel()
+    status = &quot;MAX_ITERATIONS&quot;
+</code></pre>
+<h2 id="optimization-log-format">Optimization Log Format</h2>
+<p>Append to <a class="file-ref" href="https://github.com/ZJLi2013/awesome-kernel-skills/blob/aba7662286ee19df68ce94cb7d363554f7157f0a/experiments/README.md"><code>experiments/README.md</code></a> after each iteration:</p>
+<pre><code class="language-markdown">## Optimization: {kernel_name} on {gpu}
+
+| Iter | Action | Tier | Correctness | Metric | Delta | Status |
+|------|--------|------|-------------|--------|-------|--------|
+| 0 | baseline | - | PASS | 1747 GBps | - | - |
+| 1 | increase BLOCK_SIZE 4096→8192 | T1 | PASS | 1820 GBps | +4.2% | improved |
+| 2 | vectorized loads (float4) | T2 | PASS | 1955 GBps | +7.4% | improved |
+| 3 | multi-row=8 | T1 | FAIL | - | - | reverted |
+| 4 | fuse with layernorm | T3 | PASS | 2010 GBps | +2.8% | TARGET_MET |
+
+Final: 2010 GBps (70.2% of peak), 4 iterations, target met.
+</code></pre>
+<h2 id="guardrails">Guardrails</h2>
+<ol>
+<li><strong>One change per iteration</strong>: Never apply two optimizations simultaneously. You cannot attribute improvement (or regression) otherwise.</li>
+<li><strong>Always verify before benchmark</strong>: Never measure performance of an incorrect kernel.</li>
+<li><strong>Revert on regression</strong>: Do not keep a change that makes things slower unless it enables a larger subsequent optimization (document why).</li>
+<li><strong>Respect platform</strong>: Check <a class="file-ref" href="tier5-arch-nvidia.html"><code>tier5-arch-nvidia</code></a> or <a class="file-ref" href="tier5-arch-amd-rocm.html"><code>tier5-arch-amd-rocm</code></a> before using arch-specific features. Never use Hopper TMA on AMD.</li>
+<li><strong>Max 5 iterations default</strong>: Diminishing returns kick in fast. If stuck after 5 rounds, the kernel may need an algorithmic redesign rather than tuning.</li>
+<li><strong>Log everything</strong>: Every iteration must be recorded. Future optimization attempts should read the log to avoid repeating failed changes.</li>
+</ol>
+<h2 id="when-profiling-is-not-available">When Profiling Is Not Available</h2>
+<p>If NCU/rocprof cannot be run (e.g. container restrictions, no root), fall back to:</p>
+<ol>
+<li>Use <code>test_*.py --json</code> benchmark numbers as the only signal</li>
+<li>Classify based on kernel type from the kernel&#39;s <a class="file-ref" href="optimize-loop.html"><code>SKILL.md</code></a> (it states bound type)</li>
+<li>Follow the tier priority for that bound type</li>
+<li>Iterate on autotune configs (Tier 1) first -- this is always safe</li>
+</ol>
+<h2 id="agent-instructions">Agent Instructions</h2>
+<p>When asked to optimize a kernel iteratively:</p>
+<ol>
+<li><strong>Read this skill first</strong> to understand the loop structure</li>
+<li>Establish target: ask the user or derive from GPU peak specs</li>
+<li>Run Phase 0 to get baseline</li>
+<li>Execute the loop: Profile → Diagnose → Optimize → Verify → Benchmark → Decide</li>
+<li>After each iteration, update the optimization log in <code>experiments/</code></li>
+<li>Stop when target is met, max iterations reached, or all viable tiers are exhausted</li>
+<li>Report final result with summary table</li>
+</ol>
+<p>When profiling tools are available, always start with Phase 1 (profile).
+When they are not, skip to Phase 3 using the kernel&#39;s documented bound type.</p>
+<h2 id="relationship-to-other-skills">Relationship to Other Skills</h2>
+<pre><code>optimize-loop (this skill) ─── orchestrates ───▶ all other skills
+  │
+  ├─ Phase 1 → profiling/SKILL.md
+  ├─ Phase 2 → bottleneck-diagnosis/SKILL.md
+  ├─ Phase 3 → tier1~5/SKILL.md + kernels/*/SKILL.md
+  ├─ Phase 4 → verification/SKILL.md
+  └─ Phase 5 → benchmark/SKILL.md
+</code></pre>
+<h2 id="references">References</h2>
+<ul>
+<li><a href="https://github.com/RightNow-AI/autokernel">AutoKernel program.md</a> -- The original iterative agent-driven kernel optimization loop</li>
+<li><a href="https://arxiv.org/abs/2603.10085">KernelSkill dual-level memory</a> -- Reusable optimization skills + short-term backtracking memory</li>
+</ul>
+</article>
+<details class="metadata"><summary>Skill 元信息</summary><pre><code>name: iterative-kernel-optimization-loop
+description: &gt;-
+  Orchestrates continuous kernel optimization by chaining profiling, bottleneck diagnosis,
+  tier-based optimization, verification, and benchmarking into an iterative loop.
+  This is the &quot;main program&quot; that drives the other skills. Use when you want to
+  iteratively optimize a kernel until it meets a performance target, similar to AutoKernel.</code></pre></details>
+<nav class="pager" aria-label="相邻篇目"><a href="rotary-embedding.html"><span>← 上一篇</span><strong>RoPE · 旋转位置编码</strong></a><a class="next" href="profiling.html"><span>下一篇 →</span><strong>性能分析</strong></a></nav>
+<footer class="page-footer" lang="zh-CN">来源：<a href="https://github.com/ZJLi2013/awesome-kernel-skills">Awesome Kernel Skills</a> · <a href="https://github.com/ZJLi2013/awesome-kernel-skills/commit/aba7662286ee19df68ce94cb7d363554f7157f0a">版本 aba7662</a> · <a href="../">文章首页</a></footer>
+</main>
+</div>
+</body>
+</html>

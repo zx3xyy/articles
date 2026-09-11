@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<script>try{const t=localStorage.getItem('kernel-skills-theme');document.documentElement.dataset.theme=t==='light'||t==='dark'?t:(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light')}catch{document.documentElement.dataset.theme=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}</script>
+<meta name="description" content="Cross-Entropy · Awesome Kernel Skills：GPU kernel 优化学习路径与 18 篇笔记。">
+<meta name="author" content="ZJLi2013 / awesome-kernel-skills">
+<title>Cross-Entropy · Kernel Skills · 文章</title>
+<link rel="canonical" href="https://zx3xyy.github.io/articles/kernel-skills/cross-entropy.html">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230d1117'/%3E%3Cpath d='M9 7v18m2-9L23 7M11 16l12 9' stroke='%2358a6ff' stroke-width='3' fill='none'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="reader.css">
+<script src="theme.js" defer></script>
+</head>
+<body>
+<a class="skip" href="#main">跳到正文</a>
+<header class="topbar" lang="zh-CN"><a href="../">← 文章</a><a class="brand" href="index.html">Kernel Skills</a><a class="upstream" href="https://github.com/ZJLi2013/awesome-kernel-skills">原仓库 ↗</a><button class="theme-toggle" type="button" aria-label="切换深色模式" aria-pressed="false">深色</button></header>
+<div class="layout">
+<aside class="sidebar" lang="zh-CN"><p class="sidebar-label">学习目录 <span>18 篇</span></p><nav aria-label="学习目录"><a class="path-link "  href="index.html"><span>00</span> 学习路径</a><div class="nav-group"><p>优化方法</p><ol><li><a  href="tier1-block-tiling.html"><span>01</span>分块与线程配置</a></li><li><a  href="tier2-memory-access.html"><span>02</span>内存访问与层级</a></li><li><a  href="tier3-compute-fusion.html"><span>03</span>计算优化与融合</a></li><li><a  href="tier4-advanced-scheduling.html"><span>04</span>高级调度</a></li><li><a  href="tier5-arch-nvidia.html"><span>05</span>NVIDIA 架构</a></li><li><a  href="tier5-arch-amd-rocm.html"><span>06</span>AMD / ROCm 架构</a></li></ol></div><div class="nav-group"><p>算子实践</p><ol><li><a  href="gemm.html"><span>07</span>GEMM · 矩阵乘</a></li><li><a  href="flash-attention.html"><span>08</span>FlashAttention</a></li><li><a  href="fused-moe.html"><span>09</span>Fused MoE</a></li><li><a  href="softmax.html"><span>10</span>Softmax</a></li><li><a  href="rmsnorm.html"><span>11</span>RMSNorm</a></li><li><a class="current" aria-current="page" href="cross-entropy.html"><span>12</span>Cross-Entropy</a></li><li><a  href="rotary-embedding.html"><span>13</span>RoPE · 旋转位置编码</a></li></ol></div><div class="nav-group"><p>优化流程</p><ol><li><a  href="optimize-loop.html"><span>14</span>优化循环</a></li><li><a  href="profiling.html"><span>15</span>性能分析</a></li><li><a  href="bottleneck-diagnosis.html"><span>16</span>瓶颈诊断</a></li><li><a  href="verification.html"><span>17</span>正确性验证</a></li><li><a  href="benchmark.html"><span>18</span>基准测试</a></li></ol></div></nav></aside>
+<main id="main" tabindex="-1">
+<details class="mobile-nav" lang="zh-CN"><summary>学习目录 · Cross-Entropy</summary><nav aria-label="移动端学习目录"><a class="path-link "  href="index.html"><span>00</span> 学习路径</a><div class="nav-group"><p>优化方法</p><ol><li><a  href="tier1-block-tiling.html"><span>01</span>分块与线程配置</a></li><li><a  href="tier2-memory-access.html"><span>02</span>内存访问与层级</a></li><li><a  href="tier3-compute-fusion.html"><span>03</span>计算优化与融合</a></li><li><a  href="tier4-advanced-scheduling.html"><span>04</span>高级调度</a></li><li><a  href="tier5-arch-nvidia.html"><span>05</span>NVIDIA 架构</a></li><li><a  href="tier5-arch-amd-rocm.html"><span>06</span>AMD / ROCm 架构</a></li></ol></div><div class="nav-group"><p>算子实践</p><ol><li><a  href="gemm.html"><span>07</span>GEMM · 矩阵乘</a></li><li><a  href="flash-attention.html"><span>08</span>FlashAttention</a></li><li><a  href="fused-moe.html"><span>09</span>Fused MoE</a></li><li><a  href="softmax.html"><span>10</span>Softmax</a></li><li><a  href="rmsnorm.html"><span>11</span>RMSNorm</a></li><li><a class="current" aria-current="page" href="cross-entropy.html"><span>12</span>Cross-Entropy</a></li><li><a  href="rotary-embedding.html"><span>13</span>RoPE · 旋转位置编码</a></li></ol></div><div class="nav-group"><p>优化流程</p><ol><li><a  href="optimize-loop.html"><span>14</span>优化循环</a></li><li><a  href="profiling.html"><span>15</span>性能分析</a></li><li><a  href="bottleneck-diagnosis.html"><span>16</span>瓶颈诊断</a></li><li><a  href="verification.html"><span>17</span>正确性验证</a></li><li><a  href="benchmark.html"><span>18</span>基准测试</a></li></ol></div></nav></details>
+<div class="page-meta" lang="zh-CN"><span>算子实践</span><span>12 / 18</span></div>
+<div class="source-note" lang="zh-CN">原文：<a href="https://github.com/ZJLi2013/awesome-kernel-skills/blob/aba7662286ee19df68ce94cb7d363554f7157f0a/skills/kernels/cross-entropy/SKILL.md">ZJLi2013 / skills/kernels/cross-entropy/SKILL.md</a><span>原文内容保留 · HTML 阅读版</span></div>
+<details class="outline"><summary>本页目录 <span>7 个章节</span></summary><ol><li class="depth-2"><a href="#overview">Overview</a></li><li class="depth-2"><a href="#core-technique">Core Technique</a></li><li class="depth-3"><a href="#fused-log-softmax-nll">Fused Log-Softmax + NLL</a></li><li class="depth-3"><a href="#large-vocabulary-handling">Large Vocabulary Handling</a></li><li class="depth-2"><a href="#verification">Verification</a></li><li class="depth-2"><a href="#common-pitfalls">Common Pitfalls</a></li><li class="depth-2"><a href="#references">References</a></li></ol></details>
+<article class="prose" aria-label="Cross-Entropy Kernel Optimization"><h1 id="cross-entropy-kernel-optimization">Cross-Entropy Kernel Optimization</h1>
+<h2 id="overview">Overview</h2>
+<p>Fused cross-entropy: <code>loss = -log_softmax(logits)[target]</code> computed in a single kernel pass
+per row, without materializing the full softmax output.</p>
+<p>Cross-entropy is <strong>memory-bound</strong> for large vocabularies (30K-250K).
+The key metric is <strong>GBps</strong> (only need to read logits once, write one scalar per row).</p>
+<h2 id="core-technique">Core Technique</h2>
+<h3 id="fused-log-softmax-nll">Fused Log-Softmax + NLL</h3>
+<p>Per-row computation:</p>
+<ol>
+<li>Load row of logits into FP32</li>
+<li>Find max: <code>m = max(logits)</code></li>
+<li>Compute <code>log_sum_exp = log(sum(exp(logits - m)))</code></li>
+<li>Loss = <code>-(logits[target] - m - log_sum_exp)</code></li>
+</ol>
+<p>Only the target index value is needed -- no need to compute full softmax.</p>
+<h3 id="large-vocabulary-handling">Large Vocabulary Handling</h3>
+<p>For vocab &gt; 64K (e.g., LLaMA&#39;s 128K):</p>
+<ul>
+<li>BLOCK_SIZE = next_power_of_2(vocab) can be very large</li>
+<li>Consider chunked approach: process in BLOCK_SIZE chunks, accumulate online</li>
+</ul>
+<h2 id="verification">Verification</h2>
+<pre><code class="language-bash">python skills/kernels/cross-entropy/test_cross_entropy.py
+</code></pre>
+<ul>
+<li>Correctness: compare vs <code>torch.nn.functional.cross_entropy(logits, targets)</code></li>
+<li>Performance: GBps = <code>(batch * vocab * elem_size) / latency / 1e9</code></li>
+</ul>
+<h2 id="common-pitfalls">Common Pitfalls</h2>
+<ol>
+<li><strong>Integer overflow in target indexing</strong>: target must be int64 for large vocabularies</li>
+<li><strong>Missing FP32 accumulation</strong>: log-sum-exp in FP16 is numerically unstable</li>
+<li><strong>Reduction to scalar</strong>: remember to average over batch dimension</li>
+</ol>
+<h2 id="references">References</h2>
+<ul>
+<li><a href="https://github.com/linkedin/Liger-Kernel">Liger-Kernel Fused Cross Entropy</a></li>
+<li><a href="https://github.com/RightNow-AI/autokernel">AutoKernel Cross-Entropy Starter</a></li>
+</ul>
+</article>
+<details class="metadata"><summary>Skill 元信息</summary><pre><code>name: cross-entropy-kernel
+description: &gt;-
+  Optimize fused cross-entropy loss kernels in Triton for NVIDIA and AMD GPUs.
+  Covers fused log-softmax + NLL, online log-sum-exp, and large vocabulary handling.
+  Use when writing or optimizing cross-entropy, label-smoothed CE, or similar loss kernels.</code></pre></details>
+<nav class="pager" aria-label="相邻篇目"><a href="rmsnorm.html"><span>← 上一篇</span><strong>RMSNorm</strong></a><a class="next" href="rotary-embedding.html"><span>下一篇 →</span><strong>RoPE · 旋转位置编码</strong></a></nav>
+<footer class="page-footer" lang="zh-CN">来源：<a href="https://github.com/ZJLi2013/awesome-kernel-skills">Awesome Kernel Skills</a> · <a href="https://github.com/ZJLi2013/awesome-kernel-skills/commit/aba7662286ee19df68ce94cb7d363554f7157f0a">版本 aba7662</a> · <a href="../">文章首页</a></footer>
+</main>
+</div>
+</body>
+</html>

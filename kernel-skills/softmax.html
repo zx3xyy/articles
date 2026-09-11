@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<script>try{const t=localStorage.getItem('kernel-skills-theme');document.documentElement.dataset.theme=t==='light'||t==='dark'?t:(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light')}catch{document.documentElement.dataset.theme=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}</script>
+<meta name="description" content="Softmax · Awesome Kernel Skills：GPU kernel 优化学习路径与 18 篇笔记。">
+<meta name="author" content="ZJLi2013 / awesome-kernel-skills">
+<title>Softmax · Kernel Skills · 文章</title>
+<link rel="canonical" href="https://zx3xyy.github.io/articles/kernel-skills/softmax.html">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230d1117'/%3E%3Cpath d='M9 7v18m2-9L23 7M11 16l12 9' stroke='%2358a6ff' stroke-width='3' fill='none'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="reader.css">
+<script src="theme.js" defer></script>
+</head>
+<body>
+<a class="skip" href="#main">跳到正文</a>
+<header class="topbar" lang="zh-CN"><a href="../">← 文章</a><a class="brand" href="index.html">Kernel Skills</a><a class="upstream" href="https://github.com/ZJLi2013/awesome-kernel-skills">原仓库 ↗</a><button class="theme-toggle" type="button" aria-label="切换深色模式" aria-pressed="false">深色</button></header>
+<div class="layout">
+<aside class="sidebar" lang="zh-CN"><p class="sidebar-label">学习目录 <span>18 篇</span></p><nav aria-label="学习目录"><a class="path-link "  href="index.html"><span>00</span> 学习路径</a><div class="nav-group"><p>优化方法</p><ol><li><a  href="tier1-block-tiling.html"><span>01</span>分块与线程配置</a></li><li><a  href="tier2-memory-access.html"><span>02</span>内存访问与层级</a></li><li><a  href="tier3-compute-fusion.html"><span>03</span>计算优化与融合</a></li><li><a  href="tier4-advanced-scheduling.html"><span>04</span>高级调度</a></li><li><a  href="tier5-arch-nvidia.html"><span>05</span>NVIDIA 架构</a></li><li><a  href="tier5-arch-amd-rocm.html"><span>06</span>AMD / ROCm 架构</a></li></ol></div><div class="nav-group"><p>算子实践</p><ol><li><a  href="gemm.html"><span>07</span>GEMM · 矩阵乘</a></li><li><a  href="flash-attention.html"><span>08</span>FlashAttention</a></li><li><a  href="fused-moe.html"><span>09</span>Fused MoE</a></li><li><a class="current" aria-current="page" href="softmax.html"><span>10</span>Softmax</a></li><li><a  href="rmsnorm.html"><span>11</span>RMSNorm</a></li><li><a  href="cross-entropy.html"><span>12</span>Cross-Entropy</a></li><li><a  href="rotary-embedding.html"><span>13</span>RoPE · 旋转位置编码</a></li></ol></div><div class="nav-group"><p>优化流程</p><ol><li><a  href="optimize-loop.html"><span>14</span>优化循环</a></li><li><a  href="profiling.html"><span>15</span>性能分析</a></li><li><a  href="bottleneck-diagnosis.html"><span>16</span>瓶颈诊断</a></li><li><a  href="verification.html"><span>17</span>正确性验证</a></li><li><a  href="benchmark.html"><span>18</span>基准测试</a></li></ol></div></nav></aside>
+<main id="main" tabindex="-1">
+<details class="mobile-nav" lang="zh-CN"><summary>学习目录 · Softmax</summary><nav aria-label="移动端学习目录"><a class="path-link "  href="index.html"><span>00</span> 学习路径</a><div class="nav-group"><p>优化方法</p><ol><li><a  href="tier1-block-tiling.html"><span>01</span>分块与线程配置</a></li><li><a  href="tier2-memory-access.html"><span>02</span>内存访问与层级</a></li><li><a  href="tier3-compute-fusion.html"><span>03</span>计算优化与融合</a></li><li><a  href="tier4-advanced-scheduling.html"><span>04</span>高级调度</a></li><li><a  href="tier5-arch-nvidia.html"><span>05</span>NVIDIA 架构</a></li><li><a  href="tier5-arch-amd-rocm.html"><span>06</span>AMD / ROCm 架构</a></li></ol></div><div class="nav-group"><p>算子实践</p><ol><li><a  href="gemm.html"><span>07</span>GEMM · 矩阵乘</a></li><li><a  href="flash-attention.html"><span>08</span>FlashAttention</a></li><li><a  href="fused-moe.html"><span>09</span>Fused MoE</a></li><li><a class="current" aria-current="page" href="softmax.html"><span>10</span>Softmax</a></li><li><a  href="rmsnorm.html"><span>11</span>RMSNorm</a></li><li><a  href="cross-entropy.html"><span>12</span>Cross-Entropy</a></li><li><a  href="rotary-embedding.html"><span>13</span>RoPE · 旋转位置编码</a></li></ol></div><div class="nav-group"><p>优化流程</p><ol><li><a  href="optimize-loop.html"><span>14</span>优化循环</a></li><li><a  href="profiling.html"><span>15</span>性能分析</a></li><li><a  href="bottleneck-diagnosis.html"><span>16</span>瓶颈诊断</a></li><li><a  href="verification.html"><span>17</span>正确性验证</a></li><li><a  href="benchmark.html"><span>18</span>基准测试</a></li></ol></div></nav></details>
+<div class="page-meta" lang="zh-CN"><span>算子实践</span><span>10 / 18</span></div>
+<div class="source-note" lang="zh-CN">原文：<a href="https://github.com/ZJLi2013/awesome-kernel-skills/blob/aba7662286ee19df68ce94cb7d363554f7157f0a/skills/kernels/softmax/SKILL.md">ZJLi2013 / skills/kernels/softmax/SKILL.md</a><span>原文内容保留 · HTML 阅读版</span></div>
+<details class="outline"><summary>本页目录 <span>11 个章节</span></summary><ol><li class="depth-2"><a href="#overview">Overview</a></li><li class="depth-2"><a href="#core-technique">Core Technique</a></li><li class="depth-3"><a href="#safe-softmax-numerically-stable">Safe Softmax (Numerically Stable)</a></li><li class="depth-3"><a href="#multi-row-processing">Multi-Row Processing</a></li><li class="depth-3"><a href="#blocksize-selection">BLOCKSIZE Selection</a></li><li class="depth-2"><a href="#autotune-notes">Autotune Notes</a></li><li class="depth-3"><a href="#amd-specific">AMD-Specific</a></li><li class="depth-2"><a href="#verification">Verification</a></li><li class="depth-2"><a href="#common-pitfalls">Common Pitfalls</a></li><li class="depth-2"><a href="#agent-instructions">Agent Instructions</a></li><li class="depth-2"><a href="#references">References</a></li></ol></details>
+<article class="prose" aria-label="Softmax Kernel Optimization"><h1 id="softmax-kernel-optimization">Softmax Kernel Optimization</h1>
+<h2 id="overview">Overview</h2>
+<p>Softmax: <code>out[i] = exp(x[i] - max(x)) / sum(exp(x - max(x)))</code></p>
+<p>Softmax is <strong>memory-bound</strong> for typical LLM shapes (large vocab, moderate batch).
+The key metric is <strong>GBps</strong> (fraction of HBM peak bandwidth).</p>
+<p>The fused kernel avoids 3 separate passes (max, exp-sum, normalize) by doing everything
+in one program launch per row, keeping data in registers/shared memory.</p>
+<h2 id="core-technique">Core Technique</h2>
+<h3 id="safe-softmax-numerically-stable">Safe Softmax (Numerically Stable)</h3>
+<ol>
+<li>Load entire row into registers (FP32)</li>
+<li>Find row maximum: <code>m = max(x)</code></li>
+<li>Compute shifted exponentials: <code>e = exp(x - m)</code></li>
+<li>Sum exponentials: <code>s = sum(e)</code></li>
+<li>Normalize: <code>out = e / s</code></li>
+</ol>
+<h3 id="multi-row-processing">Multi-Row Processing</h3>
+<p>For small row widths (&lt; 2048), processing one row per program wastes GPU resources.
+Process <code>NUM_ROWS_PER_PROGRAM</code> rows per program to improve occupancy.</p>
+<p>Heuristic: <code>ROWS_PER_PROG = max(1, 4096 / n_cols)</code></p>
+<h3 id="blocksize-selection">BLOCK_SIZE Selection</h3>
+<p><code>BLOCK_SIZE = next_power_of_2(n_cols)</code> -- must cover the entire row in one program.
+For very large rows (&gt;32K), consider multi-pass or split approaches.</p>
+<h2 id="autotune-notes">Autotune Notes</h2>
+<p>Softmax has fewer knobs than GEMM since it is a row-wise 1D kernel:</p>
+<ul>
+<li><code>BLOCK_SIZE</code>: determined by <code>n_cols</code> (not a free parameter)</li>
+<li><code>num_warps</code>: 4 for n_cols &lt;= 2048, 8 for n_cols &lt;= 8192, 16 for larger</li>
+<li><code>NUM_ROWS_PER_PROGRAM</code>: 1-8 depending on row width</li>
+</ul>
+<h3 id="amd-specific">AMD-Specific</h3>
+<ul>
+<li><code>num_warps=4</code> gives 256 threads (wavefront-64), sufficient for most row sizes</li>
+<li><code>num_stages=2</code> (never use 0 on HIP)</li>
+</ul>
+<h2 id="verification">Verification</h2>
+<pre><code class="language-bash">python skills/kernels/softmax/test_softmax.py
+</code></pre>
+<ul>
+<li>Correctness: <code>torch.allclose(triton_result, torch.softmax(x, dim=-1), atol=1e-3, rtol=1e-3)</code></li>
+<li>Performance: report GBps = <code>(read_bytes + write_bytes) / latency_s / 1e9</code></li>
+</ul>
+<h2 id="common-pitfalls">Common Pitfalls</h2>
+<ol>
+<li><strong>Skipping max subtraction</strong>: <code>exp(x)</code> overflows for large logits in FP16/FP32</li>
+<li><strong>FP16 reduction</strong>: sum of exponentials can overflow; always accumulate in FP32</li>
+<li><strong>BLOCK_SIZE &lt; n_cols</strong>: partial row load produces wrong results (must cover full row)</li>
+<li><strong>Single row per program with tiny n_cols</strong>: GPU occupancy collapse</li>
+</ol>
+<h2 id="agent-instructions">Agent Instructions</h2>
+<p>When optimizing a softmax kernel:</p>
+<ol>
+<li>Confirm the kernel is memory-bound (GBps metric)</li>
+<li>Match BLOCK_SIZE to row width (next_power_of_2)</li>
+<li>Use multi-row processing for small rows</li>
+<li>Profile memory throughput; target &gt;60% of HBM peak</li>
+<li>For very large vocabularies (&gt;128K), consider chunked/online approaches</li>
+</ol>
+<h2 id="references">References</h2>
+<ul>
+<li><a href="https://triton-lang.org/main/getting-started/tutorials/02-fused-softmax.html">Triton Fused Softmax Tutorial</a></li>
+<li><a href="https://arxiv.org/abs/1805.02867">Online Normalizer Calculation (Milakov &amp; Gimelshein, 2018)</a></li>
+</ul>
+</article>
+<details class="metadata"><summary>Skill 元信息</summary><pre><code>name: softmax-kernel-optimization
+description: &gt;-
+  Optimize fused softmax kernels in Triton for NVIDIA and AMD GPUs.
+  Covers online max/sum reduction, multi-row processing, numerical stability, and warp-level patterns.
+  Use when writing or optimizing softmax, log-softmax, or similar row-wise normalization kernels.</code></pre></details>
+<nav class="pager" aria-label="相邻篇目"><a href="fused-moe.html"><span>← 上一篇</span><strong>Fused MoE</strong></a><a class="next" href="rmsnorm.html"><span>下一篇 →</span><strong>RMSNorm</strong></a></nav>
+<footer class="page-footer" lang="zh-CN">来源：<a href="https://github.com/ZJLi2013/awesome-kernel-skills">Awesome Kernel Skills</a> · <a href="https://github.com/ZJLi2013/awesome-kernel-skills/commit/aba7662286ee19df68ce94cb7d363554f7157f0a">版本 aba7662</a> · <a href="../">文章首页</a></footer>
+</main>
+</div>
+</body>
+</html>

@@ -1,0 +1,512 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<script>try{const t=localStorage.getItem('kernel-skills-theme');document.documentElement.dataset.theme=t==='light'||t==='dark'?t:(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light')}catch{document.documentElement.dataset.theme=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}</script>
+<meta name="description" content="学习路径 · Awesome Kernel Skills：GPU kernel 优化学习路径与 18 篇笔记。">
+<meta name="author" content="ZJLi2013 / awesome-kernel-skills">
+<title>学习路径 · Kernel Skills · 文章</title>
+<link rel="canonical" href="https://zx3xyy.github.io/articles/kernel-skills/">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230d1117'/%3E%3Cpath d='M9 7v18m2-9L23 7M11 16l12 9' stroke='%2358a6ff' stroke-width='3' fill='none'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="reader.css">
+<script src="theme.js" defer></script>
+</head>
+<body>
+<a class="skip" href="#main">跳到正文</a>
+<header class="topbar" lang="zh-CN"><a href="../">← 文章</a><a class="brand" href="index.html">Kernel Skills</a><a class="upstream" href="https://github.com/ZJLi2013/awesome-kernel-skills">原仓库 ↗</a><button class="theme-toggle" type="button" aria-label="切换深色模式" aria-pressed="false">深色</button></header>
+<div class="layout">
+<aside class="sidebar" lang="zh-CN"><p class="sidebar-label">学习目录 <span>18 篇</span></p><nav aria-label="学习目录"><a class="path-link current" aria-current="page" href="index.html"><span>00</span> 学习路径</a><div class="nav-group"><p>优化方法</p><ol><li><a  href="tier1-block-tiling.html"><span>01</span>分块与线程配置</a></li><li><a  href="tier2-memory-access.html"><span>02</span>内存访问与层级</a></li><li><a  href="tier3-compute-fusion.html"><span>03</span>计算优化与融合</a></li><li><a  href="tier4-advanced-scheduling.html"><span>04</span>高级调度</a></li><li><a  href="tier5-arch-nvidia.html"><span>05</span>NVIDIA 架构</a></li><li><a  href="tier5-arch-amd-rocm.html"><span>06</span>AMD / ROCm 架构</a></li></ol></div><div class="nav-group"><p>算子实践</p><ol><li><a  href="gemm.html"><span>07</span>GEMM · 矩阵乘</a></li><li><a  href="flash-attention.html"><span>08</span>FlashAttention</a></li><li><a  href="fused-moe.html"><span>09</span>Fused MoE</a></li><li><a  href="softmax.html"><span>10</span>Softmax</a></li><li><a  href="rmsnorm.html"><span>11</span>RMSNorm</a></li><li><a  href="cross-entropy.html"><span>12</span>Cross-Entropy</a></li><li><a  href="rotary-embedding.html"><span>13</span>RoPE · 旋转位置编码</a></li></ol></div><div class="nav-group"><p>优化流程</p><ol><li><a  href="optimize-loop.html"><span>14</span>优化循环</a></li><li><a  href="profiling.html"><span>15</span>性能分析</a></li><li><a  href="bottleneck-diagnosis.html"><span>16</span>瓶颈诊断</a></li><li><a  href="verification.html"><span>17</span>正确性验证</a></li><li><a  href="benchmark.html"><span>18</span>基准测试</a></li></ol></div></nav></aside>
+<main id="main" tabindex="-1">
+<details class="mobile-nav" lang="zh-CN"><summary>学习目录 · 学习路径</summary><nav aria-label="移动端学习目录"><a class="path-link current" aria-current="page" href="index.html"><span>00</span> 学习路径</a><div class="nav-group"><p>优化方法</p><ol><li><a  href="tier1-block-tiling.html"><span>01</span>分块与线程配置</a></li><li><a  href="tier2-memory-access.html"><span>02</span>内存访问与层级</a></li><li><a  href="tier3-compute-fusion.html"><span>03</span>计算优化与融合</a></li><li><a  href="tier4-advanced-scheduling.html"><span>04</span>高级调度</a></li><li><a  href="tier5-arch-nvidia.html"><span>05</span>NVIDIA 架构</a></li><li><a  href="tier5-arch-amd-rocm.html"><span>06</span>AMD / ROCm 架构</a></li></ol></div><div class="nav-group"><p>算子实践</p><ol><li><a  href="gemm.html"><span>07</span>GEMM · 矩阵乘</a></li><li><a  href="flash-attention.html"><span>08</span>FlashAttention</a></li><li><a  href="fused-moe.html"><span>09</span>Fused MoE</a></li><li><a  href="softmax.html"><span>10</span>Softmax</a></li><li><a  href="rmsnorm.html"><span>11</span>RMSNorm</a></li><li><a  href="cross-entropy.html"><span>12</span>Cross-Entropy</a></li><li><a  href="rotary-embedding.html"><span>13</span>RoPE · 旋转位置编码</a></li></ol></div><div class="nav-group"><p>优化流程</p><ol><li><a  href="optimize-loop.html"><span>14</span>优化循环</a></li><li><a  href="profiling.html"><span>15</span>性能分析</a></li><li><a  href="bottleneck-diagnosis.html"><span>16</span>瓶颈诊断</a></li><li><a  href="verification.html"><span>17</span>正确性验证</a></li><li><a  href="benchmark.html"><span>18</span>基准测试</a></li></ol></div></nav></details>
+<div class="page-meta" lang="zh-CN"><span>学习路径</span><span>00 / 18</span></div>
+<div class="source-note" lang="zh-CN">原文：<a href="https://github.com/ZJLi2013/awesome-kernel-skills/blob/aba7662286ee19df68ce94cb7d363554f7157f0a/LEARNING_PATH.md">ZJLi2013 / LEARNING_PATH.md</a><span>原文内容保留 · HTML 阅读版</span></div>
+<details class="outline"><summary>本页目录 <span>16 个章节</span></summary><ol><li class="depth-2"><a href="#阅读总览">阅读总览</a></li><li class="depth-2"><a href="#第一周优化技能层6-个-skillmd-建立思维框架">第一周：优化技能层（6 个 SKILL.md）—— 建立思维框架</a></li><li class="depth-3"><a href="#day-1-2tier-1-tier-2发射几何-内存层级">Day 1-2：Tier 1 + Tier 2（发射几何 + 内存层级）</a></li><li class="depth-3"><a href="#day-3tier-3计算优化与融合">Day 3：Tier 3（计算优化与融合）</a></li><li class="depth-3"><a href="#day-4tier-4高级调度">Day 4：Tier 4（高级调度）</a></li><li class="depth-3"><a href="#day-5tier-5a-5bnvidia-amd-架构特化">Day 5：Tier 5a + 5b（NVIDIA + AMD 架构特化）</a></li><li class="depth-2"><a href="#第二周算子技能层7-个-skillmd-用框架理解具体算子">第二周：算子技能层（7 个 SKILL.md）—— 用框架理解具体算子</a></li><li class="depth-3"><a href="#day-6compute-bound-算子">Day 6：Compute-Bound 算子</a></li><li class="depth-3"><a href="#day-7memory-bound-算子">Day 7：Memory-Bound 算子</a></li><li class="depth-3"><a href="#day-8-9系统技能层5-个-skillmd-理解编排逻辑">Day 8-9：系统技能层（5 个 SKILL.md）—— 理解编排逻辑</a></li><li class="depth-2"><a href="#第三周交叉理解-对照-autokernel-programmd">第三周：交叉理解 + 对照 AutoKernel program.md</a></li><li class="depth-3"><a href="#day-10-11对照阅读">Day 10-11：对照阅读</a></li><li class="depth-3"><a href="#day-12-14综合自测">Day 12-14：综合自测</a></li><li class="depth-2"><a href="#进度追踪">进度追踪</a></li><li class="depth-3"><a href="#skillmd-阅读-自测-checklist">SKILL.md 阅读 + 自测 Checklist</a></li><li class="depth-3"><a href="#毕业标志">毕业标志</a></li></ol></details>
+<article class="prose" aria-label="Kernel Skills 知识内化路径"><h1 id="kernel-skills-知识内化路径">Kernel Skills 知识内化路径</h1>
+<p>18 个 SKILL.md，约 1,500 行。目标不是&quot;跑实验&quot;（那是 agent 的事），而是<strong>读懂每一条建议背后的物理直觉</strong>。</p>
+<hr>
+<h2 id="阅读总览">阅读总览</h2>
+<pre><code>18 个 SKILL.md 分三类：
+
+系统技能（5 个）—— HOW：优化流程怎么跑
+  optimize-loop (251L)  profiling (97L)  bottleneck-diagnosis (71L)
+  verification (89L)    benchmark (87L)
+
+优化技能（6 个）—— WHY：每层调优的物理原理
+  tier1-block-tiling (73L)       tier2-memory-access (65L)
+  tier3-compute-fusion (64L)     tier4-advanced-scheduling (63L)
+  tier5-arch-nvidia (65L)        tier5-arch-amd-rocm (74L)
+
+算子技能（7 个）—— WHAT：具体算子的算法 + 陷阱
+  gemm (103L)  softmax (84L)  rmsnorm (77L)  flash-attention (76L)
+  cross-entropy (55L)  rotary-embedding (49L)  fused-moe (72L)
+</code></pre>
+<p><strong>建议阅读顺序</strong>：先 tier1~5（建立优化思维框架） → 再 kernel skills（用框架理解具体算子） → 最后 system skills（理解流程编排）。</p>
+<p>每个 SKILL.md 里，<strong>&quot;Agent Instructions&quot; 段落可以跳过</strong>——那是给 AI 的执行指令，不是知识。<strong>重点读 Core Technique、Common Pitfalls、以及各种表格</strong>。</p>
+<hr>
+<h2 id="第一周优化技能层6-个-skillmd-建立思维框架">第一周：优化技能层（6 个 SKILL.md）—— 建立思维框架</h2>
+<p>这 6 个文件是整个知识体系的骨架。读完它们，你面对任何 kernel 都能说出&quot;先查什么、再改什么&quot;。</p>
+<h3 id="day-1-2tier-1-tier-2发射几何-内存层级">Day 1-2：Tier 1 + Tier 2（发射几何 + 内存层级）</h3>
+<h4 id="tier1-block-tilingskillmd73-行"><a class="file-ref" href="tier1-block-tiling.html"><code>tier1-block-tiling/SKILL.md</code></a>（73 行）</h4>
+<p><strong>核心要理解的</strong>：</p>
+<ul>
+<li>BLOCK_SIZE 不是&quot;越大越好&quot;，而是在 <strong>arithmetic intensity</strong> 和 <strong>occupancy</strong> 之间做 trade-off</li>
+<li><code>num_warps</code> 增多 → 隐藏延迟 → 但寄存器压力增大 → 可能反降 occupancy</li>
+<li>GROUP_SIZE_M 的本质：让相邻 thread block 访问相邻 B 列，提高 L2 命中率</li>
+<li>AMD wavefront=64 意味着 <code>num_warps=4</code> 就是 256 线程，和 NVIDIA <code>num_warps=8</code> 的线程总数一样</li>
+</ul>
+<p><strong>自测问题</strong>：</p>
+<ol>
+<li>给定 M=1024, N=1024, K=1024 的 GEMM，BLOCK_M=128, BLOCK_N=128，总共多少个 thread block？4090 有 128 SM，每个 SM 能跑几波？</li>
+<li>如果把 BLOCK_M 从 128 改成 64，thread block 数量翻倍，但每个 block 的 arithmetic intensity 降低——什么情况下这是值得的？</li>
+<li>你的 GEMM 实验里，1024 size 只有 0.57x cuBLAS。实验日志说&quot;65 blocks for 128 SMs, poor occupancy&quot;——用 Tier 1 的知识解释为什么。</li>
+</ol>
+<h4 id="tier2-memory-accessskillmd65-行"><a class="file-ref" href="tier2-memory-access.html"><code>tier2-memory-access/SKILL.md</code></a>（65 行）</h4>
+<p><strong>核心要理解的</strong>：</p>
+<ul>
+<li>Coalescing 的物理含义：同一个 warp 的 32（或 64）个线程，在同一个 cycle 访问<strong>连续地址</strong>，GPU 把它们合并成一次 128-byte（NVIDIA）或 256-byte（AMD）事务。如果地址不连续，就变成多次事务</li>
+<li>Bank conflict：shared memory 有 32 个 bank，每个 4 bytes。如果同一 warp 的多个线程碰巧访问同一个 bank 的不同地址 → 串行化。解法：padding（+1 列）或 swizzle</li>
+<li>Software pipelining（<code>num_stages</code>）的本质：把&quot;加载下一轮数据&quot;和&quot;计算当前数据&quot;在时间上重叠。<code>num_stages=3</code> 意味着 3 个缓冲区轮转</li>
+<li>Register vs Shared 的 trade-off：SMEM 增多 → block 能同时 stage 更多数据 → 但 max blocks/SM 下降</li>
+</ul>
+<p><strong>自测问题</strong>：</p>
+<ol>
+<li>为什么你的 GEMM 实验里 <code>tl.multiple_of</code> pointer hints 导致 -16.5% regression？（提示：Triton 编译器在 Ada 上已经做了类似的优化，手动 hint 干扰了编译器的优化 pass）</li>
+<li>一个 softmax kernel 每行 load 一次、store 一次，为什么是 memory-bound？请用 arithmetic intensity 估算。</li>
+<li>NVIDIA shared memory 32 banks × 4 bytes，画出访问 <code>shared[threadIdx.x][0]</code> 时 32 个线程的 bank 分布。如果改成 <code>shared[threadIdx.x][threadIdx.x]</code> 呢？</li>
+</ol>
+<hr>
+<h3 id="day-3tier-3计算优化与融合">Day 3：Tier 3（计算优化与融合）</h3>
+<h4 id="tier3-compute-fusionskillmd64-行"><a class="file-ref" href="tier3-compute-fusion.html"><code>tier3-compute-fusion/SKILL.md</code></a>（64 行）</h4>
+<p><strong>核心要理解的</strong>：</p>
+<ul>
+<li><strong>Fused epilogue</strong> 的 ROI 判断：如果 epilogue（bias/activation/quantize）是 memory-bandwidth limited（即数据要重新从 HBM 读一遍），融合的收益巨大。如果已经 compute-saturated，融合只是省了 launch，但可能增加 register pressure</li>
+<li><strong>Inner loop hygiene</strong>：K-loop 里的每一条多余指令都被放大 <code>ceil(K/BLOCK_K)</code> 倍。分支、invariant load、类型转换——都要移出去</li>
+<li><strong>Fast math 的精度 trade-off</strong>：<code>__expf</code> 比 <code>exp</code> 快但精度低。在 softmax 里（训练）要小心；在 RoPE 的 sincos 里通常可以用</li>
+</ul>
+<p><strong>自测问题</strong>：</p>
+<ol>
+<li>RMSNorm 的 forward：<code>out = x / sqrt(mean(x^2) + eps) * weight</code>。如果你把它拆成 3 个 kernel（求均方、rsqrt、乘以 weight），vs 1 个 fused kernel，数据要从 HBM 读写几次？</li>
+<li>为什么 GEMM kernel 的 accumulator 必须用 FP32，即使输入是 FP16？（提示：FP16 的 range 是 ±65504，两个 FP16 数 dot product 后结果可能已经溢出）</li>
+<li>什么情况下&quot;不应该 fuse&quot;？文档里说了两种情况，用你自己的话解释。</li>
+</ol>
+<hr>
+<h3 id="day-4tier-4高级调度">Day 4：Tier 4（高级调度）</h3>
+<h4 id="tier4-advanced-schedulingskillmd63-行"><a class="file-ref" href="tier4-advanced-scheduling.html"><code>tier4-advanced-scheduling/SKILL.md</code></a>（63 行）</h4>
+<p><strong>核心要理解的</strong>：</p>
+<ul>
+<li><strong>Split-K</strong>：把 K 维度拆给多个 block 并行做 partial sum，然后再 reduce。适用场景：M、N 很小（grid 不够大），但 K 很大</li>
+<li><strong>Persistent kernel</strong>：只 launch ≈ #SM 个 block，每个 block 内循环处理多个 tile。好处：省 launch overhead、可以控制 tile 遍历顺序（L2 友好）。坏处：代码复杂、你的 GEMM 实验里在 4090 上 regression 了 2.5%</li>
+<li><strong>Warp specialization</strong>：Hopper 的 producer/consumer warp 模型。还不到你现阶段需要的深度</li>
+<li><strong>何时用 Tier 4</strong>：前提是 Tier 1~3 已经 plateau，且 profiler 显示 tail imbalance 或 launch overhead</li>
+</ul>
+<p><strong>自测问题</strong>：</p>
+<ol>
+<li>你的 GEMM 实验 Iter 3：persistent kernel regression 2.5%。日志分析说&quot;hardware scheduler handles tile dispatch faster than software loop&quot;。为什么在 4090 上是这样，但在 H100（更多 SM）上可能不同？</li>
+<li>Split-K 的代价是什么？（额外的 HBM 写 partial sum + atomic/reduction）什么时候这个代价大于收益？</li>
+<li>Stream-K 解决的是什么问题？用&quot;最后一波 thread block 空闲&quot;来解释。</li>
+</ol>
+<hr>
+<h3 id="day-5tier-5a-5bnvidia-amd-架构特化">Day 5：Tier 5a + 5b（NVIDIA + AMD 架构特化）</h3>
+<h4 id="tier5-arch-nvidiaskillmd65-行"><a class="file-ref" href="tier5-arch-nvidia.html"><code>tier5-arch-nvidia/SKILL.md</code></a>（65 行）</h4>
+<p><strong>核心要理解的</strong>：</p>
+<ul>
+<li>三代架构的关键差异：Ampere（cp.async）→ Hopper（TMA + WGMMA + cluster）→ Ada（高 FP16 throughput 但消费级带宽）</li>
+<li>4090 的特殊性：FLOPS 很高但 memory bandwidth 相对低 → 很多 kernel 实际上是 memory-bound → fusion 和 L2 优化比算力优化更重要</li>
+<li>NCU metrics 速查：低 sm_throughput + 低 dram_throughput = occupancy/launch 问题（Tier 1/4）；高 DRAM + 低 TC = memory path（Tier 2）</li>
+</ul>
+<h4 id="tier5-arch-amd-rocmskillmd74-行"><a class="file-ref" href="tier5-arch-amd-rocm.html"><code>tier5-arch-amd-rocm/SKILL.md</code></a>（74 行）</h4>
+<p><strong>核心要理解的</strong>：</p>
+<ul>
+<li>Wavefront-64 的全局影响：所有关于&quot;warp 内行为&quot;的直觉都要乘以 2</li>
+<li>MI300X 的内存优势：5.3 TB/s HBM3 + 256 MB L2。Memory-bound kernel 理论上应该比 H100 更快——但你的 Softmax 实验里反而输给 PyTorch（0.82x）</li>
+<li>MFMA vs WMMA/WGMMA：不同的 matrix fragment shape，BLOCK_K=32 是 CDNA 的 sweet spot</li>
+<li><code>waves_per_eu</code>：compute-bound 用 2<del>4，memory-bound 用 4</del>8（控制每个 EU 的 wave 数量来平衡 occupancy）</li>
+<li>HIP/Triton 的实际限制：<code>num_stages&gt;=1</code>、<code>tl.math.tanh</code> 缺失等</li>
+</ul>
+<p><strong>自测问题</strong>：</p>
+<ol>
+<li>MI300X 有 304 CU × 5.3 TB/s HBM3。为什么你的 GEMM 只达到 0.63x rocBLAS？用 Tier 5 AMD 知识列出可能的原因（autotune 空间小？MFMA 利用率低？调度？）</li>
+<li>4090 上 Softmax 1.58x，MI300X 上 0.82x。两者都是 memory-bound kernel。为什么 AMD 反而更差？（提示：PyTorch ROCm 有定制的 softmax kernel，且 MI300X 的高带宽需要更高的并行度才能喂饱）</li>
+<li>如果要把一个 NVIDIA Triton kernel 移植到 AMD，你需要改哪些东西？列一个 checklist。</li>
+</ol>
+<hr>
+<h2 id="第二周算子技能层7-个-skillmd-用框架理解具体算子">第二周：算子技能层（7 个 SKILL.md）—— 用框架理解具体算子</h2>
+<p>有了 Tier 1~5 的框架，现在读每个算子时，要练习的能力是：<strong>一看到算子就能判断瓶颈类型 → 对应到 tier 优先级 → 知道哪些优化有效</strong>。</p>
+<h3 id="day-6compute-bound-算子">Day 6：Compute-Bound 算子</h3>
+<h4 id="gemmskillmd103-行-最重要花-2-小时"><a class="file-ref" href="gemm.html"><code>gemm/SKILL.md</code></a>（103 行）—— 最重要，花 2 小时</h4>
+<p><strong>对照你的实验读</strong>：这是唯一一个你已经做过 5 轮优化的算子。结合 <a class="file-ref" href="https://github.com/ZJLi2013/awesome-kernel-skills/blob/aba7662286ee19df68ce94cb7d363554f7157f0a/experiments/gemm_optimization.md"><code>experiments/gemm_optimization.md</code></a> 一起读。</p>
+<p><strong>核心要理解的</strong>：</p>
+<ul>
+<li>Back-of-envelope：GEMM 的 arithmetic intensity = <code>2MNK / (2(MK+KN+MN) × elem_size)</code>。当 M=N=K=2048, FP16：intensity ≈ 2048/6 ≈ 341 ops/byte。4090 的 compute/BW 比 ≈ 330 TFLOPS / 1 TB/s ≈ 330 ops/byte → compute-bound（intensity &gt; compute/BW 比）</li>
+<li>L2 grouping 为什么对 GEMM 特别重要：不分组时，相邻 block 读的 B 列完全不同，L2 命中率低</li>
+<li>Tensor core 的硬约束：BLOCK_K ≥ 16（NVIDIA WMMA）或 ≥ 32（AMD MFMA），否则 tl.dot 走不了 tensor core</li>
+<li>Common Pitfall #1（K 边界 mask）：你的 EVEN_K 实验（Iter 2b）就是处理这个</li>
+</ul>
+<p><strong>自测</strong>：打开 <code>triton_template.py</code>，逐行解释 kernel 代码。能否不看 SKILL.md 说出每段代码对应的优化技巧？</p>
+<h4 id="flash-attentionskillmd76-行"><a class="file-ref" href="flash-attention.html"><code>flash-attention/SKILL.md</code></a>（76 行）</h4>
+<p><strong>核心要理解的</strong>：</p>
+<ul>
+<li>Online softmax 的关键 insight：不需要先完整算出 max，再算 exp，再算 sum。可以一边扫 K tiles 一边维护 running max <code>m_i</code> 和 running sum <code>l_i</code>，遇到更大的 max 时用 <code>alpha = exp(m_old - m_new)</code> 修正之前的累加</li>
+<li>两个 GEMM：<code>QK = Q @ K^T</code>（给出 attention scores）和 <code>acc += softmax(QK) @ V</code>（加权求和）。两个都走 tensor core</li>
+<li>Causal mask 的 early termination：如果当前 K tile 的所有 position 都在当前 Q tile 之后（全被 mask），直接 skip。<code>kv_end = min(N, (pid_m+1)*BLOCK_M)</code></li>
+<li>瓶颈类型：IO-bound（读 Q/K/V 从 HBM）+ compute-bound（两个 GEMM），混合型</li>
+<li>Pitfall #1（rescaling）：更新 m_i 后忘了 <code>acc *= alpha[:, None]</code> → 之前的累加值没有被修正 → 输出错误</li>
+</ul>
+<p><strong>自测</strong>：</p>
+<ol>
+<li>不看代码，能否画出 FlashAttention 的 tile loop 结构？（外循环 Q tile，内循环 K/V tile，每个内循环里做什么？）</li>
+<li>为什么 FlashAttention 是 O(N) 内存而不是 O(N^2)？（因为不需要 materialize 完整的 N×N attention matrix）</li>
+<li>D（head_dim）为什么必须是 constexpr？（因为 tensor core tiling 需要编译期知道 D 来确定 fragment shape）</li>
+</ol>
+<h4 id="fused-moeskillmd72-行"><a class="file-ref" href="fused-moe.html"><code>fused-moe/SKILL.md</code></a>（72 行）</h4>
+<p><strong>核心要理解的</strong>：</p>
+<ul>
+<li>MoE 的特殊性：不是一个大 GEMM，而是多个小 GEMM（每个 expert 处理不同子集的 token）。核心挑战是 routing + GEMM 的融合</li>
+<li>Token-Expert 映射的间接性：<code>sorted_token_ids</code> 让 block 不直接读 token index，而是通过排序后的映射表 → 让同一个 expert 的 token 连续排列 → GEMM 更规整</li>
+<li>小 M 问题：如果每个 expert 只分到几个 token（M 很小），grid 不够大 → 需要 BLOCK_M=16 这种极小 tile</li>
+<li>Pitfall #1（token ID 映射）：<code>sorted_token_ids // top_k</code> 才是原始 token index，除以 top_k 是因为同一个 token 可能被路由到 k 个 expert</li>
+</ul>
+<p><strong>自测</strong>：</p>
+<ol>
+<li>一个有 8 个 expert、top_k=2 的 MoE 层，64 个 token。平均每个 expert 分到多少 token？这个 M 值对 GEMM kernel 意味着什么？</li>
+<li>vLLM 的 fused_moe 为什么用 persistent kernel？（因为 expert 数量多、每个 expert 的 M 小 → 大量小 GEMM → 用 persistent 减少 launch overhead + 控制 L2 遍历）</li>
+</ol>
+<hr>
+<h3 id="day-7memory-bound-算子">Day 7：Memory-Bound 算子</h3>
+<h4 id="softmaxskillmd84-行"><a class="file-ref" href="softmax.html"><code>softmax/SKILL.md</code></a>（84 行）</h4>
+<p><strong>核心要理解的</strong>：</p>
+<ul>
+<li>Back-of-envelope：Softmax 每个元素读 1 次、写 1 次，计算 max + exp + sum + div ≈ 4 ops/element。Arithmetic intensity ≈ 4 ops / (2 × 2 bytes) ≈ 1 op/byte → 极度 memory-bound</li>
+<li>BLOCK_SIZE = next_power_of_2(n_cols)：必须覆盖整行，因为 softmax 是 per-row 归约</li>
+<li>Multi-row processing 的直觉：如果 n_cols=512，一个 program 只处理 1 行 → 占用资源太少 → GPU 利用率低。处理 4~8 行 → 每个 program 有更多工作 → 更好的 latency hiding</li>
+<li>Pitfall #2（FP16 reduction）：exp 的结果可以很大，FP16 只有 ±65504 range → sum 会溢出</li>
+</ul>
+<p><strong>自测</strong>：</p>
+<ol>
+<li>为什么 softmax 不能像 GEMM 那样做 tiling？（因为 softmax 需要整行的 max 和 sum，不能只看局部。除非用 online softmax 分 chunk——但那是 FlashAttention 的做法）</li>
+<li>MI300X 上 Softmax 0.82x vs PyTorch。如果你要改进，根据 Tier 1~2 知识，你会先尝试什么？</li>
+</ol>
+<h4 id="rmsnormskillmd77-行"><a class="file-ref" href="rmsnorm.html"><code>rmsnorm/SKILL.md</code></a>（77 行）</h4>
+<p><strong>核心要理解的</strong>：</p>
+<ul>
+<li>和 Softmax 同为 row-parallel、memory-bound，但更简单：只需要 sum(x^2)，不需要 max</li>
+<li><code>rsqrt</code> 是关键：<code>1/sqrt(x)</code> 在 GPU 上是单条指令。用 <code>sqrt</code> + <code>divide</code> 就是 2 条指令、2 倍开销</li>
+<li>为什么 4090 上 9.5x speedup 这么大：PyTorch eager 的 RMSNorm 是 3 个独立 kernel（square → mean → multiply），每个都要读写 HBM。Fused 只读写 1 次</li>
+<li>Pitfall #4（AMD LDS 64 KB）：BLOCK_SIZE 不能太大，否则 register + LDS 超预算 → occupancy 塌陷</li>
+</ul>
+<p><strong>自测</strong>：</p>
+<ol>
+<li>RMSNorm 的 arithmetic intensity 是多少？（每个元素：读 x + 读 weight → 2 reads；写 out → 1 write；计算 x^2 + sum + rsqrt + multiply ≈ 4 ops。Intensity ≈ 4/(3×2) ≈ 0.67 ops/byte → 极度 memory-bound）</li>
+<li>为什么在 MI300X 上只有 2.7x speedup（vs 4090 的 9.5x）？可能的原因？（提示：MI300X 的 PyTorch eager RMSNorm 可能已经有一定程度的优化，或者 Triton 在 AMD 上的 codegen 没有充分利用 5.3 TB/s 带宽）</li>
+</ol>
+<h4 id="cross-entropyskillmd55-行-rotary-embeddingskillmd49-行"><a class="file-ref" href="cross-entropy.html"><code>cross-entropy/SKILL.md</code></a>（55 行）+ <a class="file-ref" href="rotary-embedding.html"><code>rotary-embedding/SKILL.md</code></a>（49 行）</h4>
+<p>这两个是最薄的 SKILL.md，可以快速过。</p>
+<p><strong>Cross-Entropy 核心</strong>：</p>
+<ul>
+<li>Fused log-softmax + NLL：不 materialize 完整 softmax，只算 <code>logits[target] - max - log(sum(exp))</code></li>
+<li>大 vocab（128K）的挑战：BLOCK_SIZE = next_power_of_2(128K) = 131072 → 寄存器装不下 → 需要 chunked approach</li>
+<li>Pitfall #1：target 是 int64，大 vocab 时 int32 会溢出</li>
+</ul>
+<p><strong>RoPE 核心</strong>：</p>
+<ul>
+<li>纯 memory-bound（4 reads + 2 writes, 几乎没有计算）</li>
+<li>两种 layout（interleaved vs split-half）必须和模型一致</li>
+<li>是最适合&quot;drop-in 替换 PyTorch eager&quot;的算子（简单、收益确定）</li>
+</ul>
+<hr>
+<h3 id="day-8-9系统技能层5-个-skillmd-理解编排逻辑">Day 8-9：系统技能层（5 个 SKILL.md）—— 理解编排逻辑</h3>
+<h4 id="optimize-loopskillmd251-行-最长但你已经通过-gemm-实验体验过"><a class="file-ref" href="optimize-loop.html"><code>optimize-loop/SKILL.md</code></a>（251 行）—— 最长，但你已经通过 GEMM 实验体验过</h4>
+<p><strong>重点不是读流程图（你已经做过了），而是理解设计决策</strong>：</p>
+<ul>
+<li>为什么&quot;一次只改一个优化点&quot;？（归因：如果同时改两个东西，性能变了你不知道是哪个导致的）</li>
+<li>为什么&quot;revert on regression&quot;？（防止累积负面改动。你的 persistent kernel 实验就是正确 revert 的案例）</li>
+<li>&quot;Max 5 iterations&quot;的含义：diminishing returns。如果 5 轮没达标，问题可能不是 tuning 而是 algorithmic</li>
+</ul>
+<h4 id="profilingskillmd97-行"><a class="file-ref" href="profiling.html"><code>profiling/SKILL.md</code></a>（97 行）</h4>
+<p><strong>核心要理解的（不是命令本身，而是 metrics 的含义）</strong>：</p>
+<ul>
+<li>NCU 的 5 个关键 metric：sm_throughput、dram_throughput、l1tex_throughput、occupancy、global_load_efficiency</li>
+<li>rocprof 的关键 counter：SQ_INSTS_MFMA（tensor core 使用量）、TCC_HIT/TCC_REQ（L2 命中率）、SQ_WAVE_CYCLES（occupancy）</li>
+<li>Roofline 推导：<code>arithmetic_intensity = flops / bytes</code>。把这个点画到 roofline 图上，看它落在 memory-bound 区还是 compute-bound 区</li>
+</ul>
+<h4 id="bottleneck-diagnosisskillmd71-行"><a class="file-ref" href="bottleneck-diagnosis.html"><code>bottleneck-diagnosis/SKILL.md</code></a>（71 行）</h4>
+<p><strong>核心就是那个 flowchart</strong>——熟练到看到 profiling 数据能 1 秒判断：</p>
+<pre><code>高 DRAM + 低 compute → memory-bound → Tier 1-2
+高 compute + 低 DRAM → compute-bound → Tier 3, 然后 Tier 1/5
+两个都低 → latency-bound → Tier 4（fusion/persistent）
+</code></pre>
+<p>以及 GEAK 的 Prefer/Consider/Deprioritize 框架——避免在 memory-bound kernel 上浪费时间做 instruction shaving。</p>
+<h4 id="verificationskillmd89-行-benchmarkskillmd87-行"><a class="file-ref" href="verification.html"><code>verification/SKILL.md</code></a>（89 行）+ <a class="file-ref" href="benchmark.html"><code>benchmark/SKILL.md</code></a>（87 行）</h4>
+<p>快速过即可。关键 takeaway：</p>
+<ul>
+<li>5-stage verification：基本正确性 → dtype 敏感度 → 边界条件 → 确定性 → 压力测试</li>
+<li>Benchmark 要用 GPU warmup + 多次取 median，不是跑一次</li>
+</ul>
+<hr>
+<h2 id="第三周交叉理解-对照-autokernel-programmd">第三周：交叉理解 + 对照 AutoKernel program.md</h2>
+<h3 id="day-10-11对照阅读">Day 10-11：对照阅读</h3>
+<p>打开 <code>kernels/autokernel/program.md</code>（你本地已有），和上面 18 个 SKILL.md 做交叉对照：</p>
+<div class="table-scroll" tabindex="0" role="region" aria-label="表格，可横向滚动"><table>
+<thead>
+<tr>
+<th>对照点</th>
+<th>AutoKernel program.md</th>
+<th>awesome_kernel_skills</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Tier 1 Block Tuning</td>
+<td>第 435~446 行</td>
+<td><a class="file-ref" href="tier1-block-tiling.html"><code>tier1-block-tiling/SKILL.md</code></a></td>
+</tr>
+<tr>
+<td>Tier 2 Memory</td>
+<td>第 448~469 行</td>
+<td><a class="file-ref" href="tier2-memory-access.html"><code>tier2-memory-access/SKILL.md</code></a></td>
+</tr>
+<tr>
+<td>Tier 3 Compute</td>
+<td>第 471~486 行</td>
+<td><a class="file-ref" href="tier3-compute-fusion.html"><code>tier3-compute-fusion/SKILL.md</code></a></td>
+</tr>
+<tr>
+<td>Tier 4 Advanced</td>
+<td>第 488~510 行</td>
+<td><a class="file-ref" href="tier4-advanced-scheduling.html"><code>tier4-advanced-scheduling/SKILL.md</code></a></td>
+</tr>
+<tr>
+<td>Tier 5 Arch</td>
+<td>第 512~545 行</td>
+<td><a class="file-ref" href="tier5-arch-nvidia.html"><code>tier5-arch-nvidia</code></a> + <a class="file-ref" href="tier5-arch-amd-rocm.html"><code>tier5-arch-amd-rocm</code></a></td>
+</tr>
+<tr>
+<td>Tier 6 Kernel-specific</td>
+<td>第 547~576 行</td>
+<td>7 个 <code>kernels/*/SKILL.md</code></td>
+</tr>
+<tr>
+<td>Anti-patterns</td>
+<td>第 586~595 行</td>
+<td>分散在各 SKILL.md 的 Common Pitfalls</td>
+</tr>
+</tbody></table></div>
+<p><strong>关注差异</strong>：AutoKernel 的 program.md 在某些地方更具体（例如 CUDA C++ 的 wmma API 示例），你的 SKILL.md 在 AMD 方面更详细。两者互补。</p>
+<h3 id="day-12-14综合自测">Day 12-14：综合自测</h3>
+<p><strong>终极自测</strong>：给自己一个没见过的算子（比如 LayerNorm 或 SiLU），不看任何文档，能否在 30 分钟内：</p>
+<ol>
+<li>判断瓶颈类型（memory/compute/latency）+ back-of-envelope 推算</li>
+<li>列出 Tier 优先级（该先调什么）</li>
+<li>写出 Triton kernel 的关键结构（不需要能跑，伪代码即可）</li>
+<li>列出 3 个可能的 Common Pitfalls</li>
+<li>说出 NVIDIA vs AMD 的关键差异点</li>
+</ol>
+<p>如果 30 分钟内能完成以上 5 点，Phase 1 知识内化基本完成。</p>
+<hr>
+<h2 id="进度追踪">进度追踪</h2>
+<h3 id="skillmd-阅读-自测-checklist">SKILL.md 阅读 + 自测 Checklist</h3>
+<div class="table-scroll" tabindex="0" role="region" aria-label="表格，可横向滚动"><table>
+<thead>
+<tr>
+<th>#</th>
+<th>SKILL.md</th>
+<th>行数</th>
+<th>阅读</th>
+<th>自测完成</th>
+<th>笔记</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>1</td>
+<td>tier1-block-tiling</td>
+<td>73</td>
+<td>[ ]</td>
+<td>[ ]</td>
+<td></td>
+</tr>
+<tr>
+<td>2</td>
+<td>tier2-memory-access</td>
+<td>65</td>
+<td>[ ]</td>
+<td>[ ]</td>
+<td></td>
+</tr>
+<tr>
+<td>3</td>
+<td>tier3-compute-fusion</td>
+<td>64</td>
+<td>[ ]</td>
+<td>[ ]</td>
+<td></td>
+</tr>
+<tr>
+<td>4</td>
+<td>tier4-advanced-scheduling</td>
+<td>63</td>
+<td>[ ]</td>
+<td>[ ]</td>
+<td></td>
+</tr>
+<tr>
+<td>5</td>
+<td>tier5-arch-nvidia</td>
+<td>65</td>
+<td>[ ]</td>
+<td>[ ]</td>
+<td></td>
+</tr>
+<tr>
+<td>6</td>
+<td>tier5-arch-amd-rocm</td>
+<td>74</td>
+<td>[ ]</td>
+<td>[ ]</td>
+<td></td>
+</tr>
+<tr>
+<td>7</td>
+<td>gemm</td>
+<td>103</td>
+<td>[ ]</td>
+<td>[ ]</td>
+<td></td>
+</tr>
+<tr>
+<td>8</td>
+<td>flash-attention</td>
+<td>76</td>
+<td>[ ]</td>
+<td>[ ]</td>
+<td></td>
+</tr>
+<tr>
+<td>9</td>
+<td>fused-moe</td>
+<td>72</td>
+<td>[ ]</td>
+<td>[ ]</td>
+<td></td>
+</tr>
+<tr>
+<td>10</td>
+<td>softmax</td>
+<td>84</td>
+<td>[ ]</td>
+<td>[ ]</td>
+<td></td>
+</tr>
+<tr>
+<td>11</td>
+<td>rmsnorm</td>
+<td>77</td>
+<td>[ ]</td>
+<td>[ ]</td>
+<td></td>
+</tr>
+<tr>
+<td>12</td>
+<td>cross-entropy</td>
+<td>55</td>
+<td>[ ]</td>
+<td>[ ]</td>
+<td></td>
+</tr>
+<tr>
+<td>13</td>
+<td>rotary-embedding</td>
+<td>49</td>
+<td>[ ]</td>
+<td>[ ]</td>
+<td></td>
+</tr>
+<tr>
+<td>14</td>
+<td>optimize-loop</td>
+<td>251</td>
+<td>[ ]</td>
+<td>[ ]</td>
+<td></td>
+</tr>
+<tr>
+<td>15</td>
+<td>profiling</td>
+<td>97</td>
+<td>[ ]</td>
+<td>[ ]</td>
+<td></td>
+</tr>
+<tr>
+<td>16</td>
+<td>bottleneck-diagnosis</td>
+<td>71</td>
+<td>[ ]</td>
+<td>[ ]</td>
+<td></td>
+</tr>
+<tr>
+<td>17</td>
+<td>verification</td>
+<td>89</td>
+<td>[ ]</td>
+<td>[ ]</td>
+<td></td>
+</tr>
+<tr>
+<td>18</td>
+<td>benchmark</td>
+<td>87</td>
+<td>[ ]</td>
+<td>[ ]</td>
+<td></td>
+</tr>
+</tbody></table></div>
+<h3 id="毕业标志">毕业标志</h3>
+<div class="table-scroll" tabindex="0" role="region" aria-label="表格，可横向滚动"><table>
+<thead>
+<tr>
+<th>能力</th>
+<th>验证方式</th>
+<th>达标</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>看到算子，30s 内判断 memory/compute bound</td>
+<td>back-of-envelope arithmetic intensity</td>
+<td>[ ]</td>
+</tr>
+<tr>
+<td>给定 profiling 数据，选出正确的 tier 优先级</td>
+<td>bottleneck flowchart</td>
+<td>[ ]</td>
+</tr>
+<tr>
+<td>对 7 个算子各说出 ≥2 个 Common Pitfall</td>
+<td>不看文档</td>
+<td>[ ]</td>
+</tr>
+<tr>
+<td>解释 NVIDIA vs AMD 的 5 个核心差异</td>
+<td>wavefront、MFMA、LDS、num_stages、waves_per_eu</td>
+<td>[ ]</td>
+</tr>
+<tr>
+<td>对照 AutoKernel program.md 能说出 skill 的对应关系</td>
+<td>交叉阅读</td>
+<td>[ ]</td>
+</tr>
+<tr>
+<td>新算子 30 分钟综合自测通过</td>
+<td>Day 12-14 终极自测</td>
+<td>[ ]</td>
+</tr>
+</tbody></table></div>
+</article>
+
+<nav class="pager" aria-label="相邻篇目"><span></span><a class="next" href="tier1-block-tiling.html"><span>下一篇 →</span><strong>分块与线程配置</strong></a></nav>
+<footer class="page-footer" lang="zh-CN">来源：<a href="https://github.com/ZJLi2013/awesome-kernel-skills">Awesome Kernel Skills</a> · <a href="https://github.com/ZJLi2013/awesome-kernel-skills/commit/aba7662286ee19df68ce94cb7d363554f7157f0a">版本 aba7662</a> · <a href="../">文章首页</a></footer>
+</main>
+</div>
+</body>
+</html>

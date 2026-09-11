@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<script>try{const t=localStorage.getItem('kernel-skills-theme');document.documentElement.dataset.theme=t==='light'||t==='dark'?t:(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light')}catch{document.documentElement.dataset.theme=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}</script>
+<meta name="description" content="瓶颈诊断 · Awesome Kernel Skills：GPU kernel 优化学习路径与 18 篇笔记。">
+<meta name="author" content="ZJLi2013 / awesome-kernel-skills">
+<title>瓶颈诊断 · Kernel Skills · 文章</title>
+<link rel="canonical" href="https://zx3xyy.github.io/articles/kernel-skills/bottleneck-diagnosis.html">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230d1117'/%3E%3Cpath d='M9 7v18m2-9L23 7M11 16l12 9' stroke='%2358a6ff' stroke-width='3' fill='none'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="reader.css">
+<script src="theme.js" defer></script>
+</head>
+<body>
+<a class="skip" href="#main">跳到正文</a>
+<header class="topbar" lang="zh-CN"><a href="../">← 文章</a><a class="brand" href="index.html">Kernel Skills</a><a class="upstream" href="https://github.com/ZJLi2013/awesome-kernel-skills">原仓库 ↗</a><button class="theme-toggle" type="button" aria-label="切换深色模式" aria-pressed="false">深色</button></header>
+<div class="layout">
+<aside class="sidebar" lang="zh-CN"><p class="sidebar-label">学习目录 <span>18 篇</span></p><nav aria-label="学习目录"><a class="path-link "  href="index.html"><span>00</span> 学习路径</a><div class="nav-group"><p>优化方法</p><ol><li><a  href="tier1-block-tiling.html"><span>01</span>分块与线程配置</a></li><li><a  href="tier2-memory-access.html"><span>02</span>内存访问与层级</a></li><li><a  href="tier3-compute-fusion.html"><span>03</span>计算优化与融合</a></li><li><a  href="tier4-advanced-scheduling.html"><span>04</span>高级调度</a></li><li><a  href="tier5-arch-nvidia.html"><span>05</span>NVIDIA 架构</a></li><li><a  href="tier5-arch-amd-rocm.html"><span>06</span>AMD / ROCm 架构</a></li></ol></div><div class="nav-group"><p>算子实践</p><ol><li><a  href="gemm.html"><span>07</span>GEMM · 矩阵乘</a></li><li><a  href="flash-attention.html"><span>08</span>FlashAttention</a></li><li><a  href="fused-moe.html"><span>09</span>Fused MoE</a></li><li><a  href="softmax.html"><span>10</span>Softmax</a></li><li><a  href="rmsnorm.html"><span>11</span>RMSNorm</a></li><li><a  href="cross-entropy.html"><span>12</span>Cross-Entropy</a></li><li><a  href="rotary-embedding.html"><span>13</span>RoPE · 旋转位置编码</a></li></ol></div><div class="nav-group"><p>优化流程</p><ol><li><a  href="optimize-loop.html"><span>14</span>优化循环</a></li><li><a  href="profiling.html"><span>15</span>性能分析</a></li><li><a class="current" aria-current="page" href="bottleneck-diagnosis.html"><span>16</span>瓶颈诊断</a></li><li><a  href="verification.html"><span>17</span>正确性验证</a></li><li><a  href="benchmark.html"><span>18</span>基准测试</a></li></ol></div></nav></aside>
+<main id="main" tabindex="-1">
+<details class="mobile-nav" lang="zh-CN"><summary>学习目录 · 瓶颈诊断</summary><nav aria-label="移动端学习目录"><a class="path-link "  href="index.html"><span>00</span> 学习路径</a><div class="nav-group"><p>优化方法</p><ol><li><a  href="tier1-block-tiling.html"><span>01</span>分块与线程配置</a></li><li><a  href="tier2-memory-access.html"><span>02</span>内存访问与层级</a></li><li><a  href="tier3-compute-fusion.html"><span>03</span>计算优化与融合</a></li><li><a  href="tier4-advanced-scheduling.html"><span>04</span>高级调度</a></li><li><a  href="tier5-arch-nvidia.html"><span>05</span>NVIDIA 架构</a></li><li><a  href="tier5-arch-amd-rocm.html"><span>06</span>AMD / ROCm 架构</a></li></ol></div><div class="nav-group"><p>算子实践</p><ol><li><a  href="gemm.html"><span>07</span>GEMM · 矩阵乘</a></li><li><a  href="flash-attention.html"><span>08</span>FlashAttention</a></li><li><a  href="fused-moe.html"><span>09</span>Fused MoE</a></li><li><a  href="softmax.html"><span>10</span>Softmax</a></li><li><a  href="rmsnorm.html"><span>11</span>RMSNorm</a></li><li><a  href="cross-entropy.html"><span>12</span>Cross-Entropy</a></li><li><a  href="rotary-embedding.html"><span>13</span>RoPE · 旋转位置编码</a></li></ol></div><div class="nav-group"><p>优化流程</p><ol><li><a  href="optimize-loop.html"><span>14</span>优化循环</a></li><li><a  href="profiling.html"><span>15</span>性能分析</a></li><li><a class="current" aria-current="page" href="bottleneck-diagnosis.html"><span>16</span>瓶颈诊断</a></li><li><a  href="verification.html"><span>17</span>正确性验证</a></li><li><a  href="benchmark.html"><span>18</span>基准测试</a></li></ol></div></nav></details>
+<div class="page-meta" lang="zh-CN"><span>优化流程</span><span>16 / 18</span></div>
+<div class="source-note" lang="zh-CN">原文：<a href="https://github.com/ZJLi2013/awesome-kernel-skills/blob/aba7662286ee19df68ce94cb7d363554f7157f0a/skills/system/bottleneck-diagnosis/SKILL.md">ZJLi2013 / skills/system/bottleneck-diagnosis/SKILL.md</a><span>原文内容保留 · HTML 阅读版</span></div>
+<details class="outline"><summary>本页目录 <span>8 个章节</span></summary><ol><li class="depth-2"><a href="#three-bottleneck-types">Three bottleneck types</a></li><li class="depth-3"><a href="#1-memory-bound">1. Memory-bound</a></li><li class="depth-3"><a href="#2-compute-bound">2. Compute-bound</a></li><li class="depth-3"><a href="#3-latency-bound">3. Latency-bound</a></li><li class="depth-2"><a href="#metrics-driven-flowchart-roofline-style">Metrics-driven flowchart (roofline-style)</a></li><li class="depth-2"><a href="#priority-framework-geak-style">Priority framework (GEAK-style)</a></li><li class="depth-2"><a href="#mapping-to-autokernel-tiers">Mapping to AutoKernel tiers</a></li><li class="depth-2"><a href="#agent-instructions">Agent Instructions</a></li></ol></details>
+<article class="prose" aria-label="Bottleneck Diagnosis (GEAK / Workload Guidance)"><h1 id="bottleneck-diagnosis-geak-workload-guidance">Bottleneck Diagnosis (GEAK / Workload Guidance)</h1>
+<p>Integrates <strong>GEAK-style <code>workload_guidance</code></strong> with the <strong><a href="https://github.com/RightNow-AI/autokernel">AutoKernel</a> six-tier playbook</strong>: diagnosis picks <strong>which tier</strong> to emphasize next.</p>
+<h2 id="three-bottleneck-types">Three bottleneck types</h2>
+<h3 id="1-memory-bound">1. Memory-bound</h3>
+<ul>
+<li><strong>Signals</strong>: <strong>Roofline</strong> memory regime: <strong>HBM BW % of peak</strong> tends <strong>high</strong> while <strong>compute % of peak</strong> stays <strong>low</strong>; low <strong>arithmetic intensity</strong>; load/store stalls dominate in timelines.</li>
+<li><strong>Guidance</strong>: <strong>Prefer</strong> algorithmic <strong>fusion</strong> (fewer round-trips), <strong>tiling</strong> that improves <strong>reuse</strong> (L2 grouping, larger K-tiles), <strong>vectorized loads</strong>, <strong>Split-K</strong> only if it does not inflate traffic.</li>
+<li><strong>Deprioritize</strong>: Blind <strong>instruction shaving</strong> when bytes dominate.</li>
+</ul>
+<h3 id="2-compute-bound">2. Compute-bound</h3>
+<ul>
+<li><strong>Signals</strong>: High <strong>% peak TFLOPS</strong> (or MFMA/TC active cycles), <strong>VALU/MFMA</strong> hot, memory counters sub-saturated.</li>
+<li><strong>Guidance</strong>: <strong>Prefer</strong> <strong>MFMA/WGMMA-friendly</strong> shapes, <strong>inner-loop</strong> cleanup, <strong>mixed precision</strong> with safe accumulators, <strong>fast math</strong> where numerics allow.</li>
+<li><strong>Deprioritize</strong>: Extra <strong>fusion</strong> that only saves launches but increases <strong>register</strong> pressure without BW win.</li>
+</ul>
+<h3 id="3-latency-bound">3. Latency-bound</h3>
+<ul>
+<li><strong>Signals</strong>: Many <strong>short kernels</strong>, low <strong>occupancy</strong>, pipeline bubbles, <strong>launch overhead</strong> visible in timeline; often <strong>low duration</strong> per kernel.</li>
+<li><strong>Guidance</strong>: <strong>Prefer</strong> <strong>kernel fusion</strong>, <strong>persistent</strong> loops, <strong>fewer synchronizations</strong>, overlapping <strong>comm + compute</strong> in multi-GPU cases.</li>
+<li><strong>Deprioritize</strong>: Heavy <strong>Split-K</strong> atomics or complex schedules before addressing <strong>launch granularity</strong>.</li>
+</ul>
+<h2 id="metrics-driven-flowchart-roofline-style">Metrics-driven flowchart (roofline-style)</h2>
+<p>Use <strong>measured</strong> <code>% peak memory bandwidth</code> and <code>% peak FP16/FP8 TFLOPS</code> (or vendor counters):</p>
+<pre><code class="language-text">IF dram_bw_pct is high AND tflops_pct is low
+   → memory-bound → Tiers 1–2 first, then fusion (Tier 3)
+ELIF tflops_pct is high AND dram_bw_pct is moderate/low
+   → compute-bound → Tier 3 math/MMA, then Tier 1 occupancy/reg tuning
+ELIF both percentages are low AND many short kernels / low occupancy
+   → latency-bound → Tier 4 persistence/fusion, reduce launches
+ELSE
+   → mixed / unclear → gather second metrics (L2 hit, TC active, wave occupancy)
+</code></pre>
+<h2 id="priority-framework-geak-style">Priority framework (GEAK-style)</h2>
+<div class="table-scroll" tabindex="0" role="region" aria-label="表格，可横向滚动"><table>
+<thead>
+<tr>
+<th>Priority</th>
+<th>Meaning</th>
+<th>Example actions</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Prefer First</strong></td>
+<td>Highest ROI for this diagnosis</td>
+<td>Memory-bound → L2 tiling + vector loads</td>
+</tr>
+<tr>
+<td><strong>Consider</strong></td>
+<td>Secondary, validate with profile</td>
+<td>Compute-bound → fast math after MMA layout fixed</td>
+</tr>
+<tr>
+<td><strong>Deprioritize</strong></td>
+<td>Low ROI or harmful until root cause shifts</td>
+<td>Latency-bound → micro-optimizing div/sqrt in cold code</td>
+</tr>
+</tbody></table></div>
+<h2 id="mapping-to-autokernel-tiers">Mapping to AutoKernel tiers</h2>
+<div class="table-scroll" tabindex="0" role="region" aria-label="表格，可横向滚动"><table>
+<thead>
+<tr>
+<th>Bottleneck</th>
+<th>Primary tiers</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Memory</td>
+<td><strong>1–2</strong> (tile + hierarchy), <strong>3</strong> fusion</td>
+</tr>
+<tr>
+<td>Compute</td>
+<td><strong>1</strong> occupancy, <strong>3</strong> math, <strong>5</strong> vendor MMA</td>
+</tr>
+<tr>
+<td>Latency</td>
+<td><strong>4</strong> scheduling, <strong>3</strong> fusion, <strong>multi-GPU</strong> overlap</td>
+</tr>
+</tbody></table></div>
+<h2 id="agent-instructions">Agent Instructions</h2>
+<ol>
+<li>Ingest <strong>metrics.json</strong>-style fields (<code>dram_throughput_pct</code>, <code>sm_throughput_pct</code> / MFMA, <code>occupancy_pct</code>, kernel count, duration) from the profiling skill.</li>
+<li>Apply the <strong>flowchart</strong>; label the workload <strong>memory / compute / latency</strong> with one paragraph of evidence.</li>
+<li>Emit recommendations tagged <strong>Prefer First</strong>, <strong>Consider</strong>, <strong>Deprioritize</strong> aligned with GEAK workload guidance habits.</li>
+<li>Point to the <strong>next AutoKernel tier file</strong> (tier1…tier5) matching the diagnosis; avoid jumping to Hopper-only features on AMD (and vice versa).</li>
+<li>If metrics conflict, request <strong>one extra counter pass</strong> (e.g. L2 hit, TC active) before suggesting invasive Tier 4 rewrites.</li>
+</ol>
+</article>
+<details class="metadata"><summary>Skill 元信息</summary><pre><code>name: gpu-kernel-bottleneck-diagnosis
+description: &gt;-
+  Classifies GPU kernel bottlenecks (memory, compute, latency) from profiling metrics and applies
+  GEAK-style workload guidance: what to prefer, consider, or deprioritize. Use after NCU/rocprof
+  or when choosing between fusion, tiling, and scheduling changes without a clear winner.</code></pre></details>
+<nav class="pager" aria-label="相邻篇目"><a href="profiling.html"><span>← 上一篇</span><strong>性能分析</strong></a><a class="next" href="verification.html"><span>下一篇 →</span><strong>正确性验证</strong></a></nav>
+<footer class="page-footer" lang="zh-CN">来源：<a href="https://github.com/ZJLi2013/awesome-kernel-skills">Awesome Kernel Skills</a> · <a href="https://github.com/ZJLi2013/awesome-kernel-skills/commit/aba7662286ee19df68ce94cb7d363554f7157f0a">版本 aba7662</a> · <a href="../">文章首页</a></footer>
+</main>
+</div>
+</body>
+</html>

@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<script>try{const t=localStorage.getItem('kernel-skills-theme');document.documentElement.dataset.theme=t==='light'||t==='dark'?t:(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light')}catch{document.documentElement.dataset.theme=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}</script>
+<meta name="description" content="内存访问与层级 · Awesome Kernel Skills：GPU kernel 优化学习路径与 18 篇笔记。">
+<meta name="author" content="ZJLi2013 / awesome-kernel-skills">
+<title>内存访问与层级 · Kernel Skills · 文章</title>
+<link rel="canonical" href="https://zx3xyy.github.io/articles/kernel-skills/tier2-memory-access.html">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230d1117'/%3E%3Cpath d='M9 7v18m2-9L23 7M11 16l12 9' stroke='%2358a6ff' stroke-width='3' fill='none'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="reader.css">
+<script src="theme.js" defer></script>
+</head>
+<body>
+<a class="skip" href="#main">跳到正文</a>
+<header class="topbar" lang="zh-CN"><a href="../">← 文章</a><a class="brand" href="index.html">Kernel Skills</a><a class="upstream" href="https://github.com/ZJLi2013/awesome-kernel-skills">原仓库 ↗</a><button class="theme-toggle" type="button" aria-label="切换深色模式" aria-pressed="false">深色</button></header>
+<div class="layout">
+<aside class="sidebar" lang="zh-CN"><p class="sidebar-label">学习目录 <span>18 篇</span></p><nav aria-label="学习目录"><a class="path-link "  href="index.html"><span>00</span> 学习路径</a><div class="nav-group"><p>优化方法</p><ol><li><a  href="tier1-block-tiling.html"><span>01</span>分块与线程配置</a></li><li><a class="current" aria-current="page" href="tier2-memory-access.html"><span>02</span>内存访问与层级</a></li><li><a  href="tier3-compute-fusion.html"><span>03</span>计算优化与融合</a></li><li><a  href="tier4-advanced-scheduling.html"><span>04</span>高级调度</a></li><li><a  href="tier5-arch-nvidia.html"><span>05</span>NVIDIA 架构</a></li><li><a  href="tier5-arch-amd-rocm.html"><span>06</span>AMD / ROCm 架构</a></li></ol></div><div class="nav-group"><p>算子实践</p><ol><li><a  href="gemm.html"><span>07</span>GEMM · 矩阵乘</a></li><li><a  href="flash-attention.html"><span>08</span>FlashAttention</a></li><li><a  href="fused-moe.html"><span>09</span>Fused MoE</a></li><li><a  href="softmax.html"><span>10</span>Softmax</a></li><li><a  href="rmsnorm.html"><span>11</span>RMSNorm</a></li><li><a  href="cross-entropy.html"><span>12</span>Cross-Entropy</a></li><li><a  href="rotary-embedding.html"><span>13</span>RoPE · 旋转位置编码</a></li></ol></div><div class="nav-group"><p>优化流程</p><ol><li><a  href="optimize-loop.html"><span>14</span>优化循环</a></li><li><a  href="profiling.html"><span>15</span>性能分析</a></li><li><a  href="bottleneck-diagnosis.html"><span>16</span>瓶颈诊断</a></li><li><a  href="verification.html"><span>17</span>正确性验证</a></li><li><a  href="benchmark.html"><span>18</span>基准测试</a></li></ol></div></nav></aside>
+<main id="main" tabindex="-1">
+<details class="mobile-nav" lang="zh-CN"><summary>学习目录 · 内存访问与层级</summary><nav aria-label="移动端学习目录"><a class="path-link "  href="index.html"><span>00</span> 学习路径</a><div class="nav-group"><p>优化方法</p><ol><li><a  href="tier1-block-tiling.html"><span>01</span>分块与线程配置</a></li><li><a class="current" aria-current="page" href="tier2-memory-access.html"><span>02</span>内存访问与层级</a></li><li><a  href="tier3-compute-fusion.html"><span>03</span>计算优化与融合</a></li><li><a  href="tier4-advanced-scheduling.html"><span>04</span>高级调度</a></li><li><a  href="tier5-arch-nvidia.html"><span>05</span>NVIDIA 架构</a></li><li><a  href="tier5-arch-amd-rocm.html"><span>06</span>AMD / ROCm 架构</a></li></ol></div><div class="nav-group"><p>算子实践</p><ol><li><a  href="gemm.html"><span>07</span>GEMM · 矩阵乘</a></li><li><a  href="flash-attention.html"><span>08</span>FlashAttention</a></li><li><a  href="fused-moe.html"><span>09</span>Fused MoE</a></li><li><a  href="softmax.html"><span>10</span>Softmax</a></li><li><a  href="rmsnorm.html"><span>11</span>RMSNorm</a></li><li><a  href="cross-entropy.html"><span>12</span>Cross-Entropy</a></li><li><a  href="rotary-embedding.html"><span>13</span>RoPE · 旋转位置编码</a></li></ol></div><div class="nav-group"><p>优化流程</p><ol><li><a  href="optimize-loop.html"><span>14</span>优化循环</a></li><li><a  href="profiling.html"><span>15</span>性能分析</a></li><li><a  href="bottleneck-diagnosis.html"><span>16</span>瓶颈诊断</a></li><li><a  href="verification.html"><span>17</span>正确性验证</a></li><li><a  href="benchmark.html"><span>18</span>基准测试</a></li></ol></div></nav></details>
+<div class="page-meta" lang="zh-CN"><span>优化方法</span><span>02 / 18</span></div>
+<div class="source-note" lang="zh-CN">原文：<a href="https://github.com/ZJLi2013/awesome-kernel-skills/blob/aba7662286ee19df68ce94cb7d363554f7157f0a/skills/optimization/tier2-memory-access/SKILL.md">ZJLi2013 / skills/optimization/tier2-memory-access/SKILL.md</a><span>原文内容保留 · HTML 阅读版</span></div>
+<details class="outline"><summary>本页目录 <span>9 个章节</span></summary><ol><li class="depth-2"><a href="#global-memory-coalescing">Global memory: coalescing</a></li><li class="depth-2"><a href="#software-pipelining">Software pipelining</a></li><li class="depth-2"><a href="#shared-memory-lds-banks-and-layout">Shared memory / LDS: banks and layout</a></li><li class="depth-2"><a href="#l2-aware-behavior">L2-aware behavior</a></li><li class="depth-2"><a href="#register-vs-shared-scratchpad-tradeoff">Register vs shared (scratchpad) tradeoff</a></li><li class="depth-2"><a href="#nvidia-bank-conflict-mental-model">NVIDIA bank-conflict mental model</a></li><li class="depth-2"><a href="#store-coalescing-and-atomics">Store coalescing and atomics</a></li><li class="depth-2"><a href="#amd-lds-pressure-signals">AMD LDS pressure signals</a></li><li class="depth-2"><a href="#agent-instructions">Agent Instructions</a></li></ol></details>
+<article class="prose" aria-label="Tier 2: Memory Hierarchy Optimization"><h1 id="tier-2-memory-hierarchy-optimization">Tier 2: Memory Hierarchy Optimization</h1>
+<p><strong>AutoKernel Tier 2</strong> focus: after launch geometry (Tier 1), maximize bytes moved usefully per cycle across HBM → L2 → L1/LDS → registers.</p>
+<h2 id="global-memory-coalescing">Global memory: coalescing</h2>
+<ul>
+<li>Prefer <strong>contiguous threads</strong> accessing <strong>consecutive addresses</strong> (stride-1 along the fastest varying index in global load/store).</li>
+<li><strong>Vectorized loads</strong> (<code>float4</code>, <code>uint4</code>, Triton <code>block_ptr</code> with wide <code>block_shape</code>): fewer instructions, better line utilization when aligned.</li>
+<li><strong>NVIDIA</strong>: aim for <strong>128-byte</strong> sector-friendly access patterns per warp where possible.</li>
+<li><strong>AMD</strong>: <strong>256-byte</strong> granularity is often optimal for full-line utilization on global loads; verify with rocprof transaction counters.</li>
+</ul>
+<h2 id="software-pipelining">Software pipelining</h2>
+<ul>
+<li><strong>NVIDIA Ampere+</strong>: <code>cp.async</code> from global to shared; <strong>Hopper</strong>: <strong>TMA</strong> bulk tensor loads if using supported APIs/kernels.</li>
+<li>Use <strong>multi-buffer SMEM</strong> (ties to <code>num_stages</code> in Triton) to overlap load with math.</li>
+<li><strong>AMD</strong>: explicit prefetch via buffer lines or unrolled loads + LDS; pipeline depth co-tuned with register pressure.</li>
+</ul>
+<h2 id="shared-memory-lds-banks-and-layout">Shared memory / LDS: banks and layout</h2>
+<ul>
+<li><strong>NVIDIA</strong>: <strong>32 banks</strong>, <strong>4-byte</strong> width; <strong>stride-32</strong> FP32 columns → bank conflicts. Mitigations:<ul>
+<li><strong>Pad inner dimension</strong> (e.g. <code>+1</code> column) to skew addresses across banks.</li>
+<li><strong>Swizzled / XOR layouts</strong> for MMA-friendly tiles (CUTLASS/Triton patterns).</li>
+</ul>
+</li>
+<li><strong>AMD LDS</strong>: on the order of <strong>~64 KB per CU</strong> (architecture-dependent); treat as <strong>scarce</strong> — spill to registers or shrink tiles if occupancy collapses.</li>
+</ul>
+<h2 id="l2-aware-behavior">L2-aware behavior</h2>
+<ul>
+<li><strong>Tile ordering</strong> (e.g. <code>GROUP_SIZE_M</code>) and <strong>problem splitting</strong> (Split-K, stream-K in Tier 4) change L2 reuse; pair Tier 2 vectorization with Tier 1 grouping.</li>
+</ul>
+<h2 id="register-vs-shared-scratchpad-tradeoff">Register vs shared (scratchpad) tradeoff</h2>
+<ul>
+<li><strong>More SMEM/LDS</strong>: enables reuse and wider loads but can <strong>drop max blocks/SM</strong>.</li>
+<li><strong>More registers</strong>: faster per-thread state but can <strong>reduce occupancy</strong>; profile spill.</li>
+<li>Prefer <strong>SMEM for tile staging</strong> and <strong>regs for per-lane accumulators</strong> in classic GEMM.</li>
+</ul>
+<h2 id="nvidia-bank-conflict-mental-model">NVIDIA bank-conflict mental model</h2>
+<ul>
+<li>Address within warp: <code>bank = (offset_in_bytes / 4) % 32</code> for classic layouts; <strong>32 lanes</strong> hitting the same bank on the same cycle → serial replays.</li>
+<li><strong>Padding</strong> <code>N_stride + 1</code> (FP32) is the minimal skew; larger pads sometimes help <strong>double-buffer</strong> pointer math stay conflict-free across stages.</li>
+<li><strong>Swizzle</strong> maps logical <code>(row,col)</code> to physical addresses so MMA loads spread across banks (see CUTLASS/Triton shared layouts).</li>
+</ul>
+<h2 id="store-coalescing-and-atomics">Store coalescing and atomics</h2>
+<ul>
+<li><strong>Global stores</strong> follow the same contiguous-lane rule as loads; misaligned <strong>partial tiles</strong> at matrix edges often need <strong>predicated narrow stores</strong> rather than scalar scatter.</li>
+<li><strong>Atomics</strong> break coalescing and hurt bandwidth; avoid in inner loops unless algorithmically required (e.g. some reductions).</li>
+</ul>
+<h2 id="amd-lds-pressure-signals">AMD LDS pressure signals</h2>
+<ul>
+<li>If <strong>VGPR spill</strong> or <strong>low wave count</strong> appears when LDS grows, <strong>shrink tile</strong> or move stable data to <strong>regs</strong> / <strong>global</strong> with prefetch.</li>
+<li><strong>rocprof</strong>: rising <strong>LDS bank conflicts</strong> or <strong>stall_cycles</strong> alongside LDS instructions flags layout issues analogous to NVIDIA bank replay.</li>
+</ul>
+<h2 id="agent-instructions">Agent Instructions</h2>
+<ol>
+<li>From profiling, classify <strong>global vs L2 vs LDS</strong> bottlenecks (sector efficiency, hit rates, LDS bank conflicts if exposed).</li>
+<li>Fix <strong>access patterns first</strong> (stride, thread→address mapping), then add <strong>vector widths</strong> aligned to 16/128/256 B as vendor-appropriate.</li>
+<li>If using pipelining, align <strong><code>num_stages</code></strong> with buffer counts and verify <strong>bank conflict-free</strong> SMEM/LDS layouts (pad or swizzle).</li>
+<li>On <strong>AMD</strong>, assume <strong>64-byte L1 line</strong> behavior when reasoning about spatial locality; validate with <strong>TCC/L2</strong> counters.</li>
+<li>Escalate to <strong>AutoKernel Tier 3</strong> if math dominates after memory patterns are clean.</li>
+</ol>
+</article>
+<details class="metadata"><summary>Skill 元信息</summary><pre><code>name: gpu-opt-tier2-memory-hierarchy
+description: &gt;-
+  Optimizes global, shared/LDS, and cache behavior for GPU kernels: coalescing, pipelining,
+  bank conflicts, vector loads, and register vs shared tradeoffs. Use when NCU/rocprof shows
+  low memory throughput, poor coalescing, or L2/LDS pressure.</code></pre></details>
+<nav class="pager" aria-label="相邻篇目"><a href="tier1-block-tiling.html"><span>← 上一篇</span><strong>分块与线程配置</strong></a><a class="next" href="tier3-compute-fusion.html"><span>下一篇 →</span><strong>计算优化与融合</strong></a></nav>
+<footer class="page-footer" lang="zh-CN">来源：<a href="https://github.com/ZJLi2013/awesome-kernel-skills">Awesome Kernel Skills</a> · <a href="https://github.com/ZJLi2013/awesome-kernel-skills/commit/aba7662286ee19df68ce94cb7d363554f7157f0a">版本 aba7662</a> · <a href="../">文章首页</a></footer>
+</main>
+</div>
+</body>
+</html>

@@ -4,45 +4,60 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>文章 · zx3xyy</title>
+<meta name="color-scheme" content="light dark">
+<script>try{const t=localStorage.getItem('kernel-skills-theme');document.documentElement.dataset.theme=t==='light'||t==='dark'?t:(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light')}catch{document.documentElement.dataset.theme=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}</script>
+<script src="kernel-skills/theme.js" defer></script>
 <style>
+  :root { color-scheme:light; --bg:#ffffff; --text:#24292f; --panel:#f6f8fa; --muted:#57606a; --line:#d0d7de; --accent:#0969da; --tag-line:#bed9f7; }
+  :root[data-theme=dark] { color-scheme:dark; --bg:#0d1117; --text:#e6edf3; --panel:#161b22; --muted:#a4aebc; --line:#30363d; --accent:#79b8ff; --tag-line:#1f3a5f; }
+  .theme-toggle { position:absolute; top:20px; right:20px; font:600 14px -apple-system,BlinkMacSystemFont,sans-serif; padding:8px 12px; min-height:38px; border:1px solid var(--line); border-radius:7px; background:var(--panel); color:var(--text); cursor:pointer; }
+  .theme-toggle:focus-visible { outline:2px solid var(--accent); outline-offset:3px; }
+
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
     font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
-    background: #0d1117; color: #e6edf3; min-height: 100vh;
+    background: var(--bg); color: var(--text); min-height: 100vh;
   }
   .hero {
     padding: 72px 20px 40px; text-align: center;
     background: radial-gradient(600px 300px at 50% -80px, rgba(88,166,255,.15), transparent);
   }
   .hero h1 { font-size: 34px; letter-spacing: 2px; }
-  .hero p { color: #8b949e; margin-top: 10px; font-size: 15px; }
+  .hero p { color: var(--muted); margin-top: 10px; font-size: 15px; }
   main { max-width: 720px; margin: 0 auto; padding: 8px 20px 64px; }
   a.card {
     display: block; text-decoration: none; color: inherit;
-    border: 1px solid #30363d; border-radius: 14px; padding: 24px;
-    margin-bottom: 18px; background: #161b22;
+    border: 1px solid var(--line); border-radius: 14px; padding: 24px;
+    margin-bottom: 18px; background: var(--panel);
     transition: border-color .2s, transform .2s;
   }
-  a.card:hover { border-color: #58a6ff; transform: translateY(-2px); }
+  a.card:hover { border-color: var(--accent); transform: translateY(-2px); }
   .card h2 { font-size: 21px; margin-bottom: 10px; }
-  .card h2 .arrow { color: #58a6ff; font-weight: 400; }
-  .card p { color: #8b949e; font-size: 14px; line-height: 1.7; }
+  .card h2 .arrow { color: var(--accent); font-weight: 400; }
+  .card p { color: var(--muted); font-size: 14px; line-height: 1.7; }
   .tags { margin-top: 14px; display: flex; gap: 8px; flex-wrap: wrap; }
   .tag {
-    font-size: 12px; color: #58a6ff; border: 1px solid #1f3a5f;
+    font-size: 12px; color: var(--accent); border: 1px solid var(--tag-line);
     background: rgba(88,166,255,.08); padding: 3px 10px; border-radius: 999px;
   }
-  .date { font-size: 12px; color: #6e7681; margin-top: 12px; }
-  footer { text-align: center; color: #6e7681; font-size: 13px; padding: 24px; }
-  footer a { color: #58a6ff; text-decoration: none; }
+  .date { font-size: 12px; color: var(--muted); margin-top: 12px; }
+  footer { text-align: center; color: var(--muted); font-size: 13px; padding: 24px; }
+  footer a { color: var(--accent); text-decoration: none; }
 </style>
 </head>
 <body>
+  <button class="theme-toggle" type="button" aria-label="切换到深色模式" aria-pressed="false">深色</button>
   <div class="hero">
     <h1>文章</h1>
     <p>技术讲解合集 · 每篇一个目录</p>
   </div>
   <main>
+    <a class="card" href="kernel-skills/">
+      <h2>Kernel Skills 学习手册 <span class="arrow">→</span></h2>
+      <p>完整学习路径与 18 篇 GPU kernel 优化笔记：分块、访存、融合、调度、NVIDIA / AMD 架构，以及 GEMM、FlashAttention 等算子。原文来自 ZJLi2013/awesome-kernel-skills。</p>
+      <div class="tags"><span class="tag">GPU Kernel</span><span class="tag">Triton</span><span class="tag">18 篇笔记</span></div>
+      <div class="date">2026-09 · 浅色 / 深色阅读</div>
+    </a>
     <a class="card" href="dflash2/">
       <h2>DFlash2 讲解 <span class="arrow">→</span></h2>
       <p>一次 forward，猜完一整个 token block。从推测解码的瓶颈说起：块并行 drafting、候选路径选择器、两 tap 动态深度卷积，再到目标模型的验证与回滚，附可交互的四步推理演示。</p>

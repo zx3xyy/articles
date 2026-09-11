@@ -1,0 +1,506 @@
+{
+  "files": {
+    "LEARNING_PATH.md": "# Kernel Skills 知识内化路径\n\n18 个 SKILL.md，约 1,500 行。目标不是\"跑实验\"（那是 agent 的事），而是**读懂每一条建议背后的物理直觉**。\n\n---\n\n## 阅读总览\n\n```\n18 个 SKILL.md 分三类：\n\n系统技能（5 个）—— HOW：优化流程怎么跑\n  optimize-loop (251L)  profiling (97L)  bottleneck-diagnosis (71L)\n  verification (89L)    benchmark (87L)\n\n优化技能（6 个）—— WHY：每层调优的物理原理\n  tier1-block-tiling (73L)       tier2-memory-access (65L)\n  tier3-compute-fusion (64L)     tier4-advanced-scheduling (63L)\n  tier5-arch-nvidia (65L)        tier5-arch-amd-rocm (74L)\n\n算子技能（7 个）—— WHAT：具体算子的算法 + 陷阱\n  gemm (103L)  softmax (84L)  rmsnorm (77L)  flash-attention (76L)\n  cross-entropy (55L)  rotary-embedding (49L)  fused-moe (72L)\n```\n\n**建议阅读顺序**：先 tier1~5（建立优化思维框架） → 再 kernel skills（用框架理解具体算子） → 最后 system skills（理解流程编排）。\n\n每个 SKILL.md 里，**\"Agent Instructions\" 段落可以跳过**——那是给 AI 的执行指令，不是知识。**重点读 Core Technique、Common Pitfalls、以及各种表格**。\n\n---\n\n## 第一周：优化技能层（6 个 SKILL.md）—— 建立思维框架\n\n这 6 个文件是整个知识体系的骨架。读完它们，你面对任何 kernel 都能说出\"先查什么、再改什么\"。\n\n### Day 1-2：Tier 1 + Tier 2（发射几何 + 内存层级）\n\n#### `tier1-block-tiling/SKILL.md`（73 行）\n\n**核心要理解的**：\n- BLOCK_SIZE 不是\"越大越好\"，而是在 **arithmetic intensity** 和 **occupancy** 之间做 trade-off\n- `num_warps` 增多 → 隐藏延迟 → 但寄存器压力增大 → 可能反降 occupancy\n- GROUP_SIZE_M 的本质：让相邻 thread block 访问相邻 B 列，提高 L2 命中率\n- AMD wavefront=64 意味着 `num_warps=4` 就是 256 线程，和 NVIDIA `num_warps=8` 的线程总数一样\n\n**自测问题**：\n1. 给定 M=1024, N=1024, K=1024 的 GEMM，BLOCK_M=128, BLOCK_N=128，总共多少个 thread block？4090 有 128 SM，每个 SM 能跑几波？\n2. 如果把 BLOCK_M 从 128 改成 64，thread block 数量翻倍，但每个 block 的 arithmetic intensity 降低——什么情况下这是值得的？\n3. 你的 GEMM 实验里，1024 size 只有 0.57x cuBLAS。实验日志说\"65 blocks for 128 SMs, poor occupancy\"——用 Tier 1 的知识解释为什么。\n\n#### `tier2-memory-access/SKILL.md`（65 行）\n\n**核心要理解的**：\n- Coalescing 的物理含义：同一个 warp 的 32（或 64）个线程，在同一个 cycle 访问**连续地址**，GPU 把它们合并成一次 128-byte（NVIDIA）或 256-byte（AMD）事务。如果地址不连续，就变成多次事务\n- Bank conflict：shared memory 有 32 个 bank，每个 4 bytes。如果同一 warp 的多个线程碰巧访问同一个 bank 的不同地址 → 串行化。解法：padding（+1 列）或 swizzle\n- Software pipelining（`num_stages`）的本质：把\"加载下一轮数据\"和\"计算当前数据\"在时间上重叠。`num_stages=3` 意味着 3 个缓冲区轮转\n- Register vs Shared 的 trade-off：SMEM 增多 → block 能同时 stage 更多数据 → 但 max blocks/SM 下降\n\n**自测问题**：\n1. 为什么你的 GEMM 实验里 `tl.multiple_of` pointer hints 导致 -16.5% regression？（提示：Triton 编译器在 Ada 上已经做了类似的优化，手动 hint 干扰了编译器的优化 pass）\n2. 一个 softmax kernel 每行 load 一次、store 一次，为什么是 memory-bound？请用 arithmetic intensity 估算。\n3. NVIDIA shared memory 32 banks × 4 bytes，画出访问 `shared[threadIdx.x][0]` 时 32 个线程的 bank 分布。如果改成 `shared[threadIdx.x][threadIdx.x]` 呢？\n\n---\n\n### Day 3：Tier 3（计算优化与融合）\n\n#### `tier3-compute-fusion/SKILL.md`（64 行）\n\n**核心要理解的**：\n- **Fused epilogue** 的 ROI 判断：如果 epilogue（bias/activation/quantize）是 memory-bandwidth limited（即数据要重新从 HBM 读一遍），融合的收益巨大。如果已经 compute-saturated，融合只是省了 launch，但可能增加 register pressure\n- **Inner loop hygiene**：K-loop 里的每一条多余指令都被放大 `ceil(K/BLOCK_K)` 倍。分支、invariant load、类型转换——都要移出去\n- **Fast math 的精度 trade-off**：`__expf` 比 `exp` 快但精度低。在 softmax 里（训练）要小心；在 RoPE 的 sincos 里通常可以用\n\n**自测问题**：\n1. RMSNorm 的 forward：`out = x / sqrt(mean(x^2) + eps) * weight`。如果你把它拆成 3 个 kernel（求均方、rsqrt、乘以 weight），vs 1 个 fused kernel，数据要从 HBM 读写几次？\n2. 为什么 GEMM kernel 的 accumulator 必须用 FP32，即使输入是 FP16？（提示：FP16 的 range 是 ±65504，两个 FP16 数 dot product 后结果可能已经溢出）\n3. 什么情况下\"不应该 fuse\"？文档里说了两种情况，用你自己的话解释。\n\n---\n\n### Day 4：Tier 4（高级调度）\n\n#### `tier4-advanced-scheduling/SKILL.md`（63 行）\n\n**核心要理解的**：\n- **Split-K**：把 K 维度拆给多个 block 并行做 partial sum，然后再 reduce。适用场景：M、N 很小（grid 不够大），但 K 很大\n- **Persistent kernel**：只 launch ≈ #SM 个 block，每个 block 内循环处理多个 tile。好处：省 launch overhead、可以控制 tile 遍历顺序（L2 友好）。坏处：代码复杂、你的 GEMM 实验里在 4090 上 regression 了 2.5%\n- **Warp specialization**：Hopper 的 producer/consumer warp 模型。还不到你现阶段需要的深度\n- **何时用 Tier 4**：前提是 Tier 1~3 已经 plateau，且 profiler 显示 tail imbalance 或 launch overhead\n\n**自测问题**：\n1. 你的 GEMM 实验 Iter 3：persistent kernel regression 2.5%。日志分析说\"hardware scheduler handles tile dispatch faster than software loop\"。为什么在 4090 上是这样，但在 H100（更多 SM）上可能不同？\n2. Split-K 的代价是什么？（额外的 HBM 写 partial sum + atomic/reduction）什么时候这个代价大于收益？\n3. Stream-K 解决的是什么问题？用\"最后一波 thread block 空闲\"来解释。\n\n---\n\n### Day 5：Tier 5a + 5b（NVIDIA + AMD 架构特化）\n\n#### `tier5-arch-nvidia/SKILL.md`（65 行）\n\n**核心要理解的**：\n- 三代架构的关键差异：Ampere（cp.async）→ Hopper（TMA + WGMMA + cluster）→ Ada（高 FP16 throughput 但消费级带宽）\n- 4090 的特殊性：FLOPS 很高但 memory bandwidth 相对低 → 很多 kernel 实际上是 memory-bound → fusion 和 L2 优化比算力优化更重要\n- NCU metrics 速查：低 sm_throughput + 低 dram_throughput = occupancy/launch 问题（Tier 1/4）；高 DRAM + 低 TC = memory path（Tier 2）\n\n#### `tier5-arch-amd-rocm/SKILL.md`（74 行）\n\n**核心要理解的**：\n- Wavefront-64 的全局影响：所有关于\"warp 内行为\"的直觉都要乘以 2\n- MI300X 的内存优势：5.3 TB/s HBM3 + 256 MB L2。Memory-bound kernel 理论上应该比 H100 更快——但你的 Softmax 实验里反而输给 PyTorch（0.82x）\n- MFMA vs WMMA/WGMMA：不同的 matrix fragment shape，BLOCK_K=32 是 CDNA 的 sweet spot\n- `waves_per_eu`：compute-bound 用 2~4，memory-bound 用 4~8（控制每个 EU 的 wave 数量来平衡 occupancy）\n- HIP/Triton 的实际限制：`num_stages>=1`、`tl.math.tanh` 缺失等\n\n**自测问题**：\n1. MI300X 有 304 CU × 5.3 TB/s HBM3。为什么你的 GEMM 只达到 0.63x rocBLAS？用 Tier 5 AMD 知识列出可能的原因（autotune 空间小？MFMA 利用率低？调度？）\n2. 4090 上 Softmax 1.58x，MI300X 上 0.82x。两者都是 memory-bound kernel。为什么 AMD 反而更差？（提示：PyTorch ROCm 有定制的 softmax kernel，且 MI300X 的高带宽需要更高的并行度才能喂饱）\n3. 如果要把一个 NVIDIA Triton kernel 移植到 AMD，你需要改哪些东西？列一个 checklist。\n\n---\n\n## 第二周：算子技能层（7 个 SKILL.md）—— 用框架理解具体算子\n\n有了 Tier 1~5 的框架，现在读每个算子时，要练习的能力是：**一看到算子就能判断瓶颈类型 → 对应到 tier 优先级 → 知道哪些优化有效**。\n\n### Day 6：Compute-Bound 算子\n\n#### `gemm/SKILL.md`（103 行）—— 最重要，花 2 小时\n\n**对照你的实验读**：这是唯一一个你已经做过 5 轮优化的算子。结合 `experiments/gemm_optimization.md` 一起读。\n\n**核心要理解的**：\n- Back-of-envelope：GEMM 的 arithmetic intensity = `2MNK / (2(MK+KN+MN) × elem_size)`。当 M=N=K=2048, FP16：intensity ≈ 2048/6 ≈ 341 ops/byte。4090 的 compute/BW 比 ≈ 330 TFLOPS / 1 TB/s ≈ 330 ops/byte → compute-bound（intensity > compute/BW 比）\n- L2 grouping 为什么对 GEMM 特别重要：不分组时，相邻 block 读的 B 列完全不同，L2 命中率低\n- Tensor core 的硬约束：BLOCK_K ≥ 16（NVIDIA WMMA）或 ≥ 32（AMD MFMA），否则 tl.dot 走不了 tensor core\n- Common Pitfall #1（K 边界 mask）：你的 EVEN_K 实验（Iter 2b）就是处理这个\n\n**自测**：打开 `triton_template.py`，逐行解释 kernel 代码。能否不看 SKILL.md 说出每段代码对应的优化技巧？\n\n#### `flash-attention/SKILL.md`（76 行）\n\n**核心要理解的**：\n- Online softmax 的关键 insight：不需要先完整算出 max，再算 exp，再算 sum。可以一边扫 K tiles 一边维护 running max `m_i` 和 running sum `l_i`，遇到更大的 max 时用 `alpha = exp(m_old - m_new)` 修正之前的累加\n- 两个 GEMM：`QK = Q @ K^T`（给出 attention scores）和 `acc += softmax(QK) @ V`（加权求和）。两个都走 tensor core\n- Causal mask 的 early termination：如果当前 K tile 的所有 position 都在当前 Q tile 之后（全被 mask），直接 skip。`kv_end = min(N, (pid_m+1)*BLOCK_M)`\n- 瓶颈类型：IO-bound（读 Q/K/V 从 HBM）+ compute-bound（两个 GEMM），混合型\n- Pitfall #1（rescaling）：更新 m_i 后忘了 `acc *= alpha[:, None]` → 之前的累加值没有被修正 → 输出错误\n\n**自测**：\n1. 不看代码，能否画出 FlashAttention 的 tile loop 结构？（外循环 Q tile，内循环 K/V tile，每个内循环里做什么？）\n2. 为什么 FlashAttention 是 O(N) 内存而不是 O(N^2)？（因为不需要 materialize 完整的 N×N attention matrix）\n3. D（head_dim）为什么必须是 constexpr？（因为 tensor core tiling 需要编译期知道 D 来确定 fragment shape）\n\n#### `fused-moe/SKILL.md`（72 行）\n\n**核心要理解的**：\n- MoE 的特殊性：不是一个大 GEMM，而是多个小 GEMM（每个 expert 处理不同子集的 token）。核心挑战是 routing + GEMM 的融合\n- Token-Expert 映射的间接性：`sorted_token_ids` 让 block 不直接读 token index，而是通过排序后的映射表 → 让同一个 expert 的 token 连续排列 → GEMM 更规整\n- 小 M 问题：如果每个 expert 只分到几个 token（M 很小），grid 不够大 → 需要 BLOCK_M=16 这种极小 tile\n- Pitfall #1（token ID 映射）：`sorted_token_ids // top_k` 才是原始 token index，除以 top_k 是因为同一个 token 可能被路由到 k 个 expert\n\n**自测**：\n1. 一个有 8 个 expert、top_k=2 的 MoE 层，64 个 token。平均每个 expert 分到多少 token？这个 M 值对 GEMM kernel 意味着什么？\n2. vLLM 的 fused_moe 为什么用 persistent kernel？（因为 expert 数量多、每个 expert 的 M 小 → 大量小 GEMM → 用 persistent 减少 launch overhead + 控制 L2 遍历）\n\n---\n\n### Day 7：Memory-Bound 算子\n\n#### `softmax/SKILL.md`（84 行）\n\n**核心要理解的**：\n- Back-of-envelope：Softmax 每个元素读 1 次、写 1 次，计算 max + exp + sum + div ≈ 4 ops/element。Arithmetic intensity ≈ 4 ops / (2 × 2 bytes) ≈ 1 op/byte → 极度 memory-bound\n- BLOCK_SIZE = next_power_of_2(n_cols)：必须覆盖整行，因为 softmax 是 per-row 归约\n- Multi-row processing 的直觉：如果 n_cols=512，一个 program 只处理 1 行 → 占用资源太少 → GPU 利用率低。处理 4~8 行 → 每个 program 有更多工作 → 更好的 latency hiding\n- Pitfall #2（FP16 reduction）：exp 的结果可以很大，FP16 只有 ±65504 range → sum 会溢出\n\n**自测**：\n1. 为什么 softmax 不能像 GEMM 那样做 tiling？（因为 softmax 需要整行的 max 和 sum，不能只看局部。除非用 online softmax 分 chunk——但那是 FlashAttention 的做法）\n2. MI300X 上 Softmax 0.82x vs PyTorch。如果你要改进，根据 Tier 1~2 知识，你会先尝试什么？\n\n#### `rmsnorm/SKILL.md`（77 行）\n\n**核心要理解的**：\n- 和 Softmax 同为 row-parallel、memory-bound，但更简单：只需要 sum(x^2)，不需要 max\n- `rsqrt` 是关键：`1/sqrt(x)` 在 GPU 上是单条指令。用 `sqrt` + `divide` 就是 2 条指令、2 倍开销\n- 为什么 4090 上 9.5x speedup 这么大：PyTorch eager 的 RMSNorm 是 3 个独立 kernel（square → mean → multiply），每个都要读写 HBM。Fused 只读写 1 次\n- Pitfall #4（AMD LDS 64 KB）：BLOCK_SIZE 不能太大，否则 register + LDS 超预算 → occupancy 塌陷\n\n**自测**：\n1. RMSNorm 的 arithmetic intensity 是多少？（每个元素：读 x + 读 weight → 2 reads；写 out → 1 write；计算 x^2 + sum + rsqrt + multiply ≈ 4 ops。Intensity ≈ 4/(3×2) ≈ 0.67 ops/byte → 极度 memory-bound）\n2. 为什么在 MI300X 上只有 2.7x speedup（vs 4090 的 9.5x）？可能的原因？（提示：MI300X 的 PyTorch eager RMSNorm 可能已经有一定程度的优化，或者 Triton 在 AMD 上的 codegen 没有充分利用 5.3 TB/s 带宽）\n\n#### `cross-entropy/SKILL.md`（55 行）+ `rotary-embedding/SKILL.md`（49 行）\n\n这两个是最薄的 SKILL.md，可以快速过。\n\n**Cross-Entropy 核心**：\n- Fused log-softmax + NLL：不 materialize 完整 softmax，只算 `logits[target] - max - log(sum(exp))`\n- 大 vocab（128K）的挑战：BLOCK_SIZE = next_power_of_2(128K) = 131072 → 寄存器装不下 → 需要 chunked approach\n- Pitfall #1：target 是 int64，大 vocab 时 int32 会溢出\n\n**RoPE 核心**：\n- 纯 memory-bound（4 reads + 2 writes, 几乎没有计算）\n- 两种 layout（interleaved vs split-half）必须和模型一致\n- 是最适合\"drop-in 替换 PyTorch eager\"的算子（简单、收益确定）\n\n---\n\n### Day 8-9：系统技能层（5 个 SKILL.md）—— 理解编排逻辑\n\n#### `optimize-loop/SKILL.md`（251 行）—— 最长，但你已经通过 GEMM 实验体验过\n\n**重点不是读流程图（你已经做过了），而是理解设计决策**：\n- 为什么\"一次只改一个优化点\"？（归因：如果同时改两个东西，性能变了你不知道是哪个导致的）\n- 为什么\"revert on regression\"？（防止累积负面改动。你的 persistent kernel 实验就是正确 revert 的案例）\n- \"Max 5 iterations\"的含义：diminishing returns。如果 5 轮没达标，问题可能不是 tuning 而是 algorithmic\n\n#### `profiling/SKILL.md`（97 行）\n\n**核心要理解的（不是命令本身，而是 metrics 的含义）**：\n- NCU 的 5 个关键 metric：sm_throughput、dram_throughput、l1tex_throughput、occupancy、global_load_efficiency\n- rocprof 的关键 counter：SQ_INSTS_MFMA（tensor core 使用量）、TCC_HIT/TCC_REQ（L2 命中率）、SQ_WAVE_CYCLES（occupancy）\n- Roofline 推导：`arithmetic_intensity = flops / bytes`。把这个点画到 roofline 图上，看它落在 memory-bound 区还是 compute-bound 区\n\n#### `bottleneck-diagnosis/SKILL.md`（71 行）\n\n**核心就是那个 flowchart**——熟练到看到 profiling 数据能 1 秒判断：\n\n```\n高 DRAM + 低 compute → memory-bound → Tier 1-2\n高 compute + 低 DRAM → compute-bound → Tier 3, 然后 Tier 1/5\n两个都低 → latency-bound → Tier 4（fusion/persistent）\n```\n\n以及 GEAK 的 Prefer/Consider/Deprioritize 框架——避免在 memory-bound kernel 上浪费时间做 instruction shaving。\n\n#### `verification/SKILL.md`（89 行）+ `benchmark/SKILL.md`（87 行）\n\n快速过即可。关键 takeaway：\n- 5-stage verification：基本正确性 → dtype 敏感度 → 边界条件 → 确定性 → 压力测试\n- Benchmark 要用 GPU warmup + 多次取 median，不是跑一次\n\n---\n\n## 第三周：交叉理解 + 对照 AutoKernel program.md\n\n### Day 10-11：对照阅读\n\n打开 `kernels/autokernel/program.md`（你本地已有），和上面 18 个 SKILL.md 做交叉对照：\n\n| 对照点 | AutoKernel program.md | awesome_kernel_skills |\n|--------|----------------------|----------------------|\n| Tier 1 Block Tuning | 第 435~446 行 | `tier1-block-tiling/SKILL.md` |\n| Tier 2 Memory | 第 448~469 行 | `tier2-memory-access/SKILL.md` |\n| Tier 3 Compute | 第 471~486 行 | `tier3-compute-fusion/SKILL.md` |\n| Tier 4 Advanced | 第 488~510 行 | `tier4-advanced-scheduling/SKILL.md` |\n| Tier 5 Arch | 第 512~545 行 | `tier5-arch-nvidia` + `tier5-arch-amd-rocm` |\n| Tier 6 Kernel-specific | 第 547~576 行 | 7 个 `kernels/*/SKILL.md` |\n| Anti-patterns | 第 586~595 行 | 分散在各 SKILL.md 的 Common Pitfalls |\n\n**关注差异**：AutoKernel 的 program.md 在某些地方更具体（例如 CUDA C++ 的 wmma API 示例），你的 SKILL.md 在 AMD 方面更详细。两者互补。\n\n### Day 12-14：综合自测\n\n**终极自测**：给自己一个没见过的算子（比如 LayerNorm 或 SiLU），不看任何文档，能否在 30 分钟内：\n\n1. 判断瓶颈类型（memory/compute/latency）+ back-of-envelope 推算\n2. 列出 Tier 优先级（该先调什么）\n3. 写出 Triton kernel 的关键结构（不需要能跑，伪代码即可）\n4. 列出 3 个可能的 Common Pitfalls\n5. 说出 NVIDIA vs AMD 的关键差异点\n\n如果 30 分钟内能完成以上 5 点，Phase 1 知识内化基本完成。\n\n---\n\n## 进度追踪\n\n### SKILL.md 阅读 + 自测 Checklist\n\n| # | SKILL.md | 行数 | 阅读 | 自测完成 | 笔记 |\n|---|----------|------|------|---------|------|\n| 1 | tier1-block-tiling | 73 | [ ] | [ ] | |\n| 2 | tier2-memory-access | 65 | [ ] | [ ] | |\n| 3 | tier3-compute-fusion | 64 | [ ] | [ ] | |\n| 4 | tier4-advanced-scheduling | 63 | [ ] | [ ] | |\n| 5 | tier5-arch-nvidia | 65 | [ ] | [ ] | |\n| 6 | tier5-arch-amd-rocm | 74 | [ ] | [ ] | |\n| 7 | gemm | 103 | [ ] | [ ] | |\n| 8 | flash-attention | 76 | [ ] | [ ] | |\n| 9 | fused-moe | 72 | [ ] | [ ] | |\n| 10 | softmax | 84 | [ ] | [ ] | |\n| 11 | rmsnorm | 77 | [ ] | [ ] | |\n| 12 | cross-entropy | 55 | [ ] | [ ] | |\n| 13 | rotary-embedding | 49 | [ ] | [ ] | |\n| 14 | optimize-loop | 251 | [ ] | [ ] | |\n| 15 | profiling | 97 | [ ] | [ ] | |\n| 16 | bottleneck-diagnosis | 71 | [ ] | [ ] | |\n| 17 | verification | 89 | [ ] | [ ] | |\n| 18 | benchmark | 87 | [ ] | [ ] | |\n\n### 毕业标志\n\n| 能力 | 验证方式 | 达标 |\n|------|---------|------|\n| 看到算子，30s 内判断 memory/compute bound | back-of-envelope arithmetic intensity | [ ] |\n| 给定 profiling 数据，选出正确的 tier 优先级 | bottleneck flowchart | [ ] |\n| 对 7 个算子各说出 ≥2 个 Common Pitfall | 不看文档 | [ ] |\n| 解释 NVIDIA vs AMD 的 5 个核心差异 | wavefront、MFMA、LDS、num_stages、waves_per_eu | [ ] |\n| 对照 AutoKernel program.md 能说出 skill 的对应关系 | 交叉阅读 | [ ] |\n| 新算子 30 分钟综合自测通过 | Day 12-14 终极自测 | [ ] |\n",
+    "skills/kernels/cross-entropy/SKILL.md": "---\nname: cross-entropy-kernel\ndescription: >-\n  Optimize fused cross-entropy loss kernels in Triton for NVIDIA and AMD GPUs.\n  Covers fused log-softmax + NLL, online log-sum-exp, and large vocabulary handling.\n  Use when writing or optimizing cross-entropy, label-smoothed CE, or similar loss kernels.\n---\n\n# Cross-Entropy Kernel Optimization\n\n## Overview\n\nFused cross-entropy: `loss = -log_softmax(logits)[target]` computed in a single kernel pass\nper row, without materializing the full softmax output.\n\nCross-entropy is **memory-bound** for large vocabularies (30K-250K).\nThe key metric is **GBps** (only need to read logits once, write one scalar per row).\n\n## Core Technique\n\n### Fused Log-Softmax + NLL\n\nPer-row computation:\n1. Load row of logits into FP32\n2. Find max: `m = max(logits)`\n3. Compute `log_sum_exp = log(sum(exp(logits - m)))`\n4. Loss = `-(logits[target] - m - log_sum_exp)`\n\nOnly the target index value is needed -- no need to compute full softmax.\n\n### Large Vocabulary Handling\n\nFor vocab > 64K (e.g., LLaMA's 128K):\n- BLOCK_SIZE = next_power_of_2(vocab) can be very large\n- Consider chunked approach: process in BLOCK_SIZE chunks, accumulate online\n\n## Verification\n\n```bash\npython skills/kernels/cross-entropy/test_cross_entropy.py\n```\n\n- Correctness: compare vs `torch.nn.functional.cross_entropy(logits, targets)`\n- Performance: GBps = `(batch * vocab * elem_size) / latency / 1e9`\n\n## Common Pitfalls\n\n1. **Integer overflow in target indexing**: target must be int64 for large vocabularies\n2. **Missing FP32 accumulation**: log-sum-exp in FP16 is numerically unstable\n3. **Reduction to scalar**: remember to average over batch dimension\n\n## References\n\n- [Liger-Kernel Fused Cross Entropy](https://github.com/linkedin/Liger-Kernel)\n- [AutoKernel Cross-Entropy Starter](https://github.com/RightNow-AI/autokernel)\n",
+    "skills/kernels/flash-attention/SKILL.md": "---\nname: flash-attention-kernel\ndescription: >-\n  Optimize FlashAttention-style fused attention kernels in Triton for NVIDIA and AMD GPUs.\n  Covers online softmax, tiled QK/AV GEMM, causal masking, and memory-efficient attention.\n  Use when writing or optimizing self-attention, cross-attention, or any QKV attention kernel.\n---\n\n# FlashAttention Kernel Optimization\n\n## Overview\n\nFlashAttention fuses the entire attention computation (Q@K^T -> softmax -> @V) into a single\nkernel, avoiding materialization of the full N x N attention matrix in HBM.\n\nFor typical LLM shapes, attention is **IO-bound** (dominated by HBM reads of Q/K/V).\nThe key metrics are **TFLOPS** and **memory savings** (O(N) instead of O(N^2)).\n\n## Core Technique\n\n### Online Softmax (Milakov & Gimelshein)\n\nThe key insight: compute softmax incrementally as K/V tiles stream through:\n1. Maintain running `m_i` (row max) and `l_i` (exp sum) per query row\n2. For each K tile: compute `qk = Q @ K^T`, update max, rescale accumulator\n3. After all K tiles: divide accumulator by final `l_i`\n\nThis avoids two passes over the attention matrix.\n\n### Tiled Computation\n\n- Outer loop: Q tiles of `[BLOCK_M, D]`\n- Inner loop: K/V tiles of `[BLOCK_N, D]`\n- Two GEMMs per inner iteration: `QK = Q @ K^T` and `acc += softmax(QK) @ V`\n- Both GEMMs use tensor cores (WMMA/WGMMA/MFMA)\n\n### Causal Masking\n\nFor causal (autoregressive) attention:\n- Early termination: skip K/V tiles where all positions are masked\n- `kv_end = min(N, (pid_m + 1) * BLOCK_M)` for causal\n- Apply `where(causal_mask, qk, -inf)` for partial tiles\n\n## Autotune Notes\n\n| Parameter | Typical Values |\n|-----------|---------------|\n| BLOCK_M | 64, 128 |\n| BLOCK_N | 32, 64 |\n| D (head dim) | 64, 128 (constexpr) |\n| num_warps | 4 (D<=64), 8 (D>64) |\n| num_stages | 2 |\n\nAMD: same structure but `num_warps` maps to wavefronts of 64.\n\n## Verification\n\n```bash\npython skills/kernels/flash-attention/test_flash_attention.py\n```\n\n- Correctness: compare vs `torch.nn.functional.scaled_dot_product_attention`\n- Performance: TFLOPS = `4 * B * H * N * N * D / latency / 1e12` (2 GEMMs, fwd only)\n\n## Common Pitfalls\n\n1. **Missing online softmax rescaling**: forgetting `acc *= alpha[:, None]` when max updates\n2. **Wrong causal mask direction**: `offs_m >= offs_n` not `offs_m > offs_n`\n3. **D not constexpr**: head dimension must be known at compile time for tensor core tiling\n4. **`tl.trans` on AMD**: works but may need explicit `.contiguous()` on input K\n\n## References\n\n- [FlashAttention: Fast and Memory-Efficient Attention (Dao et al., 2022)](https://arxiv.org/abs/2205.14135)\n- [FlashAttention-2 (Dao, 2023)](https://arxiv.org/abs/2307.08691)\n- [Triton Fused Attention Tutorial](https://triton-lang.org/main/getting-started/tutorials/06-fused-attention.html)\n",
+    "skills/kernels/fused-moe/SKILL.md": "---\nname: fused-moe-kernel\ndescription: >-\n  Optimize Fused Mixture-of-Experts (MoE) kernels in Triton for NVIDIA and AMD GPUs.\n  Covers token-expert routing, grouped GEMM, cache-aware scheduling, and top-k gating fusion.\n  Use when writing or optimizing MoE layers, expert routing, or grouped matrix multiplication.\n---\n\n# Fused MoE Kernel Optimization\n\n## Overview\n\nFused MoE combines token routing, expert GEMM, and output accumulation into a single kernel,\navoiding expensive scatter/gather operations in global memory.\n\nMoE kernels are **compute-bound** for large expert dimensions and **latency-bound** for\nsmall token counts per expert. The key metric is **TFLOPS**.\n\n## Core Technique\n\n### Token-Expert Routing\n\n1. Top-k gating: select k experts per token (typically k=2)\n2. Sort tokens by assigned expert\n3. Pad each expert's token count to be divisible by BLOCK_SIZE_M\n\n### Grouped GEMM Structure\n\nThe kernel is a standard tiled GEMM with an extra indirection:\n- `sorted_token_ids` maps program blocks to actual token rows\n- `expert_ids` maps each M-block to an expert (selects which weight matrix)\n- Block-level early exit: skip if `pid_m * BLOCK_M >= num_tokens_post_padded`\n\n### Optimization Patterns\n\n- **L2 cache grouping**: same as standard GEMM (GROUP_SIZE_M)\n- **Persistent cache-aware**: for many experts, persistent kernel with tile scheduling\n- **Compute + comm fusion**: overlap expert compute with all-to-all communication\n\n## Key Parameters\n\n| Parameter | Typical Values | Notes |\n|-----------|---------------|-------|\n| BLOCK_SIZE_M | 16, 32, 64, 128 | 16 for small token counts |\n| BLOCK_SIZE_N | 32, 64, 128 | Expert hidden dim |\n| BLOCK_SIZE_K | 32, 64, 128 | Input feature dim |\n| GROUP_SIZE_M | 1, 4, 8 | L2 grouping |\n| top_k | 1, 2 | Experts per token |\n\nSmall-M heuristic: when `M <= num_experts`, use `BLOCK_M=16, BLOCK_N=32, BLOCK_K=64, GROUP_M=1`.\n\n## Verification\n\n```bash\npython skills/kernels/fused-moe/test_fused_moe.py\n```\n\n- Correctness: compare vs sequential per-expert `torch.matmul` with top-k selection\n- Performance: TFLOPS = `2 * M * top_k * N * K / latency / 1e12`\n\n## Common Pitfalls\n\n1. **Incorrect token ID mapping**: `sorted_token_ids // top_k` maps back to original token\n2. **Padding tokens**: padded IDs must be >= num_valid_tokens for masking\n3. **Expert weight layout**: typically `[E, N, K]` (expert-major), not `[E, K, N]`\n4. **Routed weight multiplication**: must apply `topk_weights` to correct output rows\n\n## References\n\n- [Accelerating MoEs with Persistent Cache-Aware Grouped GEMM](https://pytorch.org/blog/accelerating-moes-with-a-triton-persistent-cache-aware-grouped-gemm-kernel/)\n- [vLLM Fused MoE Kernel](https://github.com/vllm-project/vllm)\n- [SGLang Fused MoE](https://www.emergentmind.com/topics/fused-moe-triton-kernel)\n",
+    "skills/kernels/gemm/SKILL.md": "---\nname: gemm-kernel-optimization\ndescription: >-\n  Optimize dense matrix multiplication (GEMM) kernels in Triton for NVIDIA and AMD GPUs.\n  Covers tiled blocking, L2 cache grouping, tensor core utilization, and dual-platform autotune.\n  Use when writing or optimizing matmul, linear layers, or any GEMM-based kernel.\n---\n\n# GEMM Kernel Optimization\n\n## Overview\n\nGeneral Matrix Multiply (C = A @ B) is the most compute-intensive operation in deep learning.\nGEMM is **compute-bound**: the key metric is **TFLOPS** (target: >60% of hardware peak).\n\n| Bound | Metric | Target (H100) | Target (4090) | Target (MI300X) |\n|-------|--------|---------------|---------------|-----------------|\n| Compute | TFLOPS | >500 FP16 | >150 FP16 | >600 FP16 |\n\n## Core Technique\n\n### Algorithm: Tiled Blocked GEMM\n\n1. Partition output C into `[BLOCK_M, BLOCK_N]` tiles, one per program instance\n2. Accumulate in FP32: iterate K dimension in `BLOCK_K` chunks\n3. Each iteration: load A tile `[BLOCK_M, BLOCK_K]`, B tile `[BLOCK_K, BLOCK_N]`, call `tl.dot`\n4. Store result tile back to C (cast to output dtype)\n\n### L2 Cache Grouping\n\nNaive row-major block ordering causes excessive HBM reads. Group `GROUP_SIZE_M` rows of blocks\nbefore moving to the next column to maximize L2 reuse of B tiles.\n\nEmpirically: GROUP_SIZE_M=8 gives 10-15% improvement on A100/H100.\n\n### Tensor Core Utilization\n\n- `tl.dot(a, b, acc)` maps to WMMA (Ampere) or WGMMA (Hopper) or MFMA (CDNA)\n- Accumulator must be FP32 for accuracy\n- BLOCK_K must be >= 16 for tensor core eligibility\n- On MI300X, MFMA prefers BLOCK_K=32 with wavefront-64\n\n## Autotune Configs\n\n### NVIDIA (Ampere/Ada/Hopper)\n\n```python\nNVIDIA_CONFIGS = [\n    triton.Config({'BLOCK_SIZE_M': 128, 'BLOCK_SIZE_N': 256, 'BLOCK_SIZE_K': 64, 'GROUP_SIZE_M': 8}, num_stages=3, num_warps=8),\n    triton.Config({'BLOCK_SIZE_M': 128, 'BLOCK_SIZE_N': 128, 'BLOCK_SIZE_K': 32, 'GROUP_SIZE_M': 8}, num_stages=4, num_warps=4),\n    triton.Config({'BLOCK_SIZE_M': 64, 'BLOCK_SIZE_N': 128, 'BLOCK_SIZE_K': 32, 'GROUP_SIZE_M': 8}, num_stages=4, num_warps=4),\n    triton.Config({'BLOCK_SIZE_M': 64, 'BLOCK_SIZE_N': 64, 'BLOCK_SIZE_K': 32, 'GROUP_SIZE_M': 8}, num_stages=5, num_warps=2),\n]\n```\n\n### AMD MI300X (CDNA3, gfx942)\n\n```python\nAMD_CONFIGS = [\n    triton.Config({'BLOCK_SIZE_M': 128, 'BLOCK_SIZE_N': 128, 'BLOCK_SIZE_K': 32, 'GROUP_SIZE_M': 8}, num_warps=4, num_stages=2),\n    triton.Config({'BLOCK_SIZE_M': 128, 'BLOCK_SIZE_N': 256, 'BLOCK_SIZE_K': 32, 'GROUP_SIZE_M': 8}, num_warps=8, num_stages=2),\n    triton.Config({'BLOCK_SIZE_M': 256, 'BLOCK_SIZE_N': 128, 'BLOCK_SIZE_K': 32, 'GROUP_SIZE_M': 8}, num_warps=8, num_stages=2),\n    triton.Config({'BLOCK_SIZE_M': 64, 'BLOCK_SIZE_N': 64, 'BLOCK_SIZE_K': 32, 'GROUP_SIZE_M': 8, 'waves_per_eu': 8}, num_warps=4, num_stages=2),\n]\n```\n\nKey AMD differences:\n- Wavefront = 64 threads (not 32); `num_warps=4` means 256 threads\n- `num_stages` must be >= 1 (0 crashes on HIP)\n- `waves_per_eu` hint for occupancy tuning (2-4 compute-bound, 4-8 memory-bound)\n\n## Verification\n\n```bash\npython skills/kernels/gemm/test_gemm.py\n```\n\n- Correctness: `torch.allclose(triton_result, torch.matmul(A, B), atol=1e-2, rtol=1e-2)` for FP16\n- Performance: report TFLOPS = `2*M*N*K / latency_s / 1e12`\n\n## Common Pitfalls\n\n1. **Missing mask on K boundary**: when K is not divisible by BLOCK_K, unmasked loads read garbage\n2. **Wrong accumulator dtype**: using FP16 accumulator causes catastrophic precision loss\n3. **GROUP_SIZE_M=1**: disables L2 grouping, 10-20% perf regression on large matrices\n4. **BLOCK_K too small on CDNA**: MI300X MFMA prefers BLOCK_K >= 32\n5. **Forgetting `.to(output_dtype)` before store**: silent precision issues\n\n## Agent Instructions\n\nWhen optimizing a GEMM kernel:\n\n1. Start with `triton_template.py` as baseline\n2. Profile with NCU/rocprof to determine if memory or compute bound\n3. If compute-bound and < 60% peak: check tensor core utilization, increase BLOCK_K\n4. If memory-bound: check L2 hit rate, adjust GROUP_SIZE_M, consider split-K\n5. Run `test_gemm.py` after every change to verify correctness + measure TFLOPS\n\n## References\n\n- [Triton Matrix Multiplication Tutorial](https://triton-lang.org/main/getting-started/tutorials/03-matrix-multiplication.html)\n- [AutoKernel program.md Tier 1](https://github.com/RightNow-AI/autokernel)\n- [CUTLASS: Persistent Kernels and Stream-K](https://research.colfax-intl.com/cutlass-tutorial-persistent-kernels-and-stream-k/)\n",
+    "skills/kernels/rmsnorm/SKILL.md": "---\nname: rmsnorm-kernel-optimization\ndescription: >-\n  Optimize RMS Normalization kernels in Triton for NVIDIA and AMD GPUs.\n  Covers row-parallel reduction, vectorized loads, warp shuffle patterns, and rsqrt usage.\n  Use when writing or optimizing RMSNorm, LayerNorm, or similar normalization kernels.\n---\n\n# RMSNorm Kernel Optimization\n\n## Overview\n\nRMS Normalization: `out = x / sqrt(mean(x^2) + eps) * weight`\n\nRMSNorm is **memory-bound**: each element is read once and written once, with minimal compute.\nThe key metric is **GBps** (fraction of HBM peak bandwidth).\n\n| Bound | Metric | Target (4090) | Target (MI300X) |\n|-------|--------|---------------|-----------------|\n| Memory | % peak BW | >60% | >60% |\n\nAutoKernel reported ~34.7% of H100 peak bandwidth for a baseline RMSNorm.\n\n## Core Technique\n\n### Row-Parallel Design\n\nOne Triton program per row (token). Each program:\n1. Loads the entire row into registers (FP32 for numerical stability)\n2. Computes sum of squares via `tl.sum(x * x)`\n3. Applies `rsqrt(mean_sq + eps)` -- single fast instruction\n4. Multiplies by weight vector\n5. Stores result\n\n### Key Optimizations\n\n- **FP32 accumulation**: always compute reduction in float32, even for FP16/BF16 inputs\n- **Vectorized loads**: BLOCK_SIZE should be >= hidden_dim, next_power_of_2 for alignment\n- **`rsqrt` intrinsic**: `1/sqrt(x)` is a single HW instruction on both NVIDIA and AMD\n- **Multi-row per program**: for small hidden dims, process multiple rows per program to improve occupancy\n\n### NVIDIA vs AMD Differences\n\n- AMD wavefront=64: fewer programs needed for same thread count\n- MI300X LDS = 64 KB/CU (vs 228 KB/SM on H100): less shared memory, but 256 MB L2\n- Both: BLOCK_SIZE should be power of 2, >= hidden_dim\n\n## Verification\n\n```bash\npython skills/kernels/rmsnorm/test_rmsnorm.py\n```\n\n- Correctness: compare vs `x * torch.rsqrt(x.pow(2).mean(-1, keepdim=True) + eps) * weight`\n- Performance: report GBps = `(read_bytes + write_bytes) / latency_s / 1e9`\n\n## Common Pitfalls\n\n1. **FP16 reduction**: computing `sum(x^2)` in FP16 overflows for large hidden dims\n2. **Missing mask**: when hidden_dim is not power of 2, unmasked loads cause errors\n3. **Separate sqrt + divide**: use `rsqrt` instead of `sqrt` + `divide` (2x fewer instructions)\n4. **Large BLOCK_SIZE on AMD**: LDS is only 64 KB/CU; keep register pressure manageable\n\n## Agent Instructions\n\nWhen optimizing a RMSNorm kernel:\n\n1. Profile to confirm memory-bound (GBps should be the focus metric)\n2. Ensure FP32 accumulation for the reduction\n3. Try multi-row per program for small hidden dims (< 1024)\n4. Check vectorized load efficiency with NCU/rocprof\n5. Run test script after every change\n\n## References\n\n- [AutoKernel RMSNorm experiments](https://github.com/RightNow-AI/autokernel)\n- [Triton Fused Softmax Tutorial (reduction pattern)](https://triton-lang.org/main/getting-started/tutorials/02-fused-softmax.html)\n",
+    "skills/kernels/rotary-embedding/SKILL.md": "---\nname: rotary-embedding-kernel\ndescription: >-\n  Optimize Rotary Position Embedding (RoPE) kernels in Triton for NVIDIA and AMD GPUs.\n  Covers interleaved/sequential layouts, sincos precomputation, and multi-row processing.\n  Use when writing or optimizing RoPE, position embeddings, or rotary transformations.\n---\n\n# Rotary Embedding (RoPE) Kernel Optimization\n\n## Overview\n\nRoPE applies a rotation to pairs of elements: `(x1, x2) -> (x1*cos - x2*sin, x1*sin + x2*cos)`.\nApplied per-position in the sequence dimension.\n\nRoPE is **memory-bound** (4 reads + 2 writes per pair, minimal compute).\nThe key metric is **GBps**.\n\n## Core Technique\n\n### Paired Element Layout\n\nTwo common layouts:\n1. **Interleaved**: `[x0, x1, x2, x3, ...]` where pairs are `(x0,x1), (x2,x3), ...`\n2. **Split-half**: `[x_first_half | x_second_half]` where pairs are `(x[i], x[i+D/2])`\n\nThis template uses **interleaved** layout (common in LLaMA/GPT):\n- Load with stride-2 indexing: `x1 = load(base + i*2)`, `x2 = load(base + i*2 + 1)`\n\n### Multi-Row Processing\n\nProcess `ROWS_PER_PROG` rows per program for better occupancy on small head dims.\n\n## Verification\n\n```bash\npython skills/kernels/rotary-embedding/test_rotary.py\n```\n\n## Common Pitfalls\n\n1. **Wrong pair layout**: interleaved vs split-half must match the model's convention\n2. **Broadcasting cos/sin**: cos/sin are `[seq_len, D/2]`, must broadcast over batch/heads\n3. **On AMD**: `tl.math.tanh` not available -- not needed for RoPE but watch related kernels\n\n## References\n\n- [RoFormer: Enhanced Transformer with Rotary Position Embedding](https://arxiv.org/abs/2104.09864)\n- [AutoKernel RoPE Starter](https://github.com/RightNow-AI/autokernel)\n",
+    "skills/kernels/softmax/SKILL.md": "---\nname: softmax-kernel-optimization\ndescription: >-\n  Optimize fused softmax kernels in Triton for NVIDIA and AMD GPUs.\n  Covers online max/sum reduction, multi-row processing, numerical stability, and warp-level patterns.\n  Use when writing or optimizing softmax, log-softmax, or similar row-wise normalization kernels.\n---\n\n# Softmax Kernel Optimization\n\n## Overview\n\nSoftmax: `out[i] = exp(x[i] - max(x)) / sum(exp(x - max(x)))`\n\nSoftmax is **memory-bound** for typical LLM shapes (large vocab, moderate batch).\nThe key metric is **GBps** (fraction of HBM peak bandwidth).\n\nThe fused kernel avoids 3 separate passes (max, exp-sum, normalize) by doing everything\nin one program launch per row, keeping data in registers/shared memory.\n\n## Core Technique\n\n### Safe Softmax (Numerically Stable)\n\n1. Load entire row into registers (FP32)\n2. Find row maximum: `m = max(x)`\n3. Compute shifted exponentials: `e = exp(x - m)`\n4. Sum exponentials: `s = sum(e)`\n5. Normalize: `out = e / s`\n\n### Multi-Row Processing\n\nFor small row widths (< 2048), processing one row per program wastes GPU resources.\nProcess `NUM_ROWS_PER_PROGRAM` rows per program to improve occupancy.\n\nHeuristic: `ROWS_PER_PROG = max(1, 4096 / n_cols)`\n\n### BLOCK_SIZE Selection\n\n`BLOCK_SIZE = next_power_of_2(n_cols)` -- must cover the entire row in one program.\nFor very large rows (>32K), consider multi-pass or split approaches.\n\n## Autotune Notes\n\nSoftmax has fewer knobs than GEMM since it is a row-wise 1D kernel:\n- `BLOCK_SIZE`: determined by `n_cols` (not a free parameter)\n- `num_warps`: 4 for n_cols <= 2048, 8 for n_cols <= 8192, 16 for larger\n- `NUM_ROWS_PER_PROGRAM`: 1-8 depending on row width\n\n### AMD-Specific\n\n- `num_warps=4` gives 256 threads (wavefront-64), sufficient for most row sizes\n- `num_stages=2` (never use 0 on HIP)\n\n## Verification\n\n```bash\npython skills/kernels/softmax/test_softmax.py\n```\n\n- Correctness: `torch.allclose(triton_result, torch.softmax(x, dim=-1), atol=1e-3, rtol=1e-3)`\n- Performance: report GBps = `(read_bytes + write_bytes) / latency_s / 1e9`\n\n## Common Pitfalls\n\n1. **Skipping max subtraction**: `exp(x)` overflows for large logits in FP16/FP32\n2. **FP16 reduction**: sum of exponentials can overflow; always accumulate in FP32\n3. **BLOCK_SIZE < n_cols**: partial row load produces wrong results (must cover full row)\n4. **Single row per program with tiny n_cols**: GPU occupancy collapse\n\n## Agent Instructions\n\nWhen optimizing a softmax kernel:\n\n1. Confirm the kernel is memory-bound (GBps metric)\n2. Match BLOCK_SIZE to row width (next_power_of_2)\n3. Use multi-row processing for small rows\n4. Profile memory throughput; target >60% of HBM peak\n5. For very large vocabularies (>128K), consider chunked/online approaches\n\n## References\n\n- [Triton Fused Softmax Tutorial](https://triton-lang.org/main/getting-started/tutorials/02-fused-softmax.html)\n- [Online Normalizer Calculation (Milakov & Gimelshein, 2018)](https://arxiv.org/abs/1805.02867)\n",
+    "skills/optimization/tier1-block-tiling/SKILL.md": "---\nname: gpu-opt-tier1-block-tiling\ndescription: >-\n  Chooses block/tile dimensions, warp counts, pipeline stages, and L2-aware block grouping\n  for GPU kernels (Triton/CUDA/HIP). Use when autotuning matmul-like kernels, tuning occupancy,\n  or aligning tile geometry with M/N/K and NVIDIA vs AMD thread models.\n---\n\n# Tier 1: Block, Tile, and Warp Configuration\n\nThis skill is **Tier 1** in [AutoKernel](https://github.com/RightNow-AI/autokernel)'s tiered optimization playbook: fix launch geometry before memory micro-optimizations.\n\n## BLOCK_SIZE_M / N / K\n\n- **Eligibility**: For tensor/MMA paths, `BLOCK_K` is often ≥16 (NVIDIA WMMA/WGMMA) or **≥32** (AMD MFMA on CDNA).\n- **Square vs rectangular**: Wider `BLOCK_N` helps B reuse in row layouts; taller `BLOCK_M` helps A reuse. Balance against register/SMEM pressure.\n- **Dimension-driven rules**:\n  - **Small M or N** (e.g. `<128`): prefer smaller tiles (64×64, 64×128) so enough blocks exist to fill the GPU.\n  - **Very large K**: larger `BLOCK_K` can amortize loads but raises SMEM/regs; validate occupancy.\n  - **Skinny matrices**: prioritize the large dimension in tile width/height so warps stay busy.\n\n## num_warps and num_stages\n\n- **num_warps**: More warps hide latency but increase register footprint and can **lower occupancy**. Typical search: **2, 4, 8** on NVIDIA; on AMD, remember **wavefront-64** — `num_warps=4` ⇒ 256 threads per block.\n- **num_stages**: Software-pipelined loads (cp.async, multi-buffer SMEM) need `num_stages≥2` on NVIDIA. On **HIP/ROCm**, **`num_stages` must be ≥1** (0 is invalid).\n- **Coordination**: High `num_stages` + large tiles can spill registers; co-tune with `num_warps`.\n\n## Occupancy tuning\n\n- If **DRAM/L2 metrics are low** and warps are often stalled on memory, try **more warps** or smaller tiles first.\n- If **compute units are underfed** and occupancy is already high, favor **larger tiles** or better instruction mix (later tiers).\n\n## GROUP_SIZE_M (L2-aware tiling)\n\n- Process **`GROUP_SIZE_M` consecutive block-rows** before advancing along N to reuse B slices in L2.\n- Common search space: **4, 8, 16**; **8** is a strong default on Ampere/Hopper-class workloads.\n\n## Typical autotune search spaces\n\n| Vendor | BLOCK_M×N×K (examples) | num_warps | num_stages | Notes |\n|--------|-------------------------|-----------|------------|--------|\n| NVIDIA | 64–256 each axis, K often 32–64 | 2, 4, 8 | 2–5 | WGMMA kernels may need arch-specific caps |\n| AMD | 64–256, **K often 32** | 2, 4, 8 (×64 threads/warp) | 1–3 | Add `waves_per_eu` (e.g. 2–8) when supported |\n\n## AMD: wavefront-64\n\n- One warp = **64** threads. Tile shapes that are multiples of **64** along the thread-dependent axis often map more cleanly.\n- Pair with **`waves_per_eu`** hints: **2–4** when compute-bound, **4–8** when memory-bound (empirical starting points).\n\n## Triton-oriented defaults (starting points)\n\n- NVIDIA GEMM-style grids often center on **128×256×64**, **128×128×32**, **64×128×32** with **`GROUP_SIZE_M=8`**; shrink M/N when grid is too coarse.\n- AMD CDNA grids often center on **128×128×32** or **256×128×32** with **`num_warps` 4 or 8**; always include at least one **64×64×32** candidate when occupancy is poor.\n- Keep **total threads per block** compatible with hardware limits (e.g. 1024 max); on AMD, **multiples of 64** per warp axis reduce tail divergence in loads.\n\n## Dividers, padding, and grid coverage\n\n- If **M, N, or K** are not divisible by tile sizes, ensure **masks** or **epilogue tiles**; autotune should still evaluate **rounded-down** main path configs.\n- Prefer **BLOCK_* divisors** that match **MMA instruction shapes** (e.g. 16/32 multiples) over arbitrary primes unless sparsity or fusion forces otherwise.\n\n## Relationship to other skills\n\n- Pairs with **gemm-kernel-optimization** for concrete config tuples; this file is the **decision logic** behind those tuples.\n- After Tier 1 sweeps plateau, hand off to **tier2-memory-access** if loads are sector-inefficient or L2 metrics are poor.\n\n## Agent Instructions\n\n1. Read problem sizes **M, N, K** and pick a **tile scale** (small M/N → smaller blocks).\n2. Build a **compact config grid**: 3–6 `(BLOCK_M, BLOCK_N, BLOCK_K)` candidates × `num_warps` × `num_stages` (respect HIP `num_stages≥1`).\n3. Always sweep **`GROUP_SIZE_M`** (e.g. 4/8/16) for GEMM-like kernels with large inner dimension.\n4. After a winner emerges, confirm **occupancy and register/SMEM limits** before locking configs.\n5. Cross-check deeper tuning against **AutoKernel Tier 2+** (memory hierarchy) if bandwidth or bank conflicts dominate.\n",
+    "skills/optimization/tier2-memory-access/SKILL.md": "---\nname: gpu-opt-tier2-memory-hierarchy\ndescription: >-\n  Optimizes global, shared/LDS, and cache behavior for GPU kernels: coalescing, pipelining,\n  bank conflicts, vector loads, and register vs shared tradeoffs. Use when NCU/rocprof shows\n  low memory throughput, poor coalescing, or L2/LDS pressure.\n---\n\n# Tier 2: Memory Hierarchy Optimization\n\n**AutoKernel Tier 2** focus: after launch geometry (Tier 1), maximize bytes moved usefully per cycle across HBM → L2 → L1/LDS → registers.\n\n## Global memory: coalescing\n\n- Prefer **contiguous threads** accessing **consecutive addresses** (stride-1 along the fastest varying index in global load/store).\n- **Vectorized loads** (`float4`, `uint4`, Triton `block_ptr` with wide `block_shape`): fewer instructions, better line utilization when aligned.\n- **NVIDIA**: aim for **128-byte** sector-friendly access patterns per warp where possible.\n- **AMD**: **256-byte** granularity is often optimal for full-line utilization on global loads; verify with rocprof transaction counters.\n\n## Software pipelining\n\n- **NVIDIA Ampere+**: `cp.async` from global to shared; **Hopper**: **TMA** bulk tensor loads if using supported APIs/kernels.\n- Use **multi-buffer SMEM** (ties to `num_stages` in Triton) to overlap load with math.\n- **AMD**: explicit prefetch via buffer lines or unrolled loads + LDS; pipeline depth co-tuned with register pressure.\n\n## Shared memory / LDS: banks and layout\n\n- **NVIDIA**: **32 banks**, **4-byte** width; **stride-32** FP32 columns → bank conflicts. Mitigations:\n  - **Pad inner dimension** (e.g. `+1` column) to skew addresses across banks.\n  - **Swizzled / XOR layouts** for MMA-friendly tiles (CUTLASS/Triton patterns).\n- **AMD LDS**: on the order of **~64 KB per CU** (architecture-dependent); treat as **scarce** — spill to registers or shrink tiles if occupancy collapses.\n\n## L2-aware behavior\n\n- **Tile ordering** (e.g. `GROUP_SIZE_M`) and **problem splitting** (Split-K, stream-K in Tier 4) change L2 reuse; pair Tier 2 vectorization with Tier 1 grouping.\n\n## Register vs shared (scratchpad) tradeoff\n\n- **More SMEM/LDS**: enables reuse and wider loads but can **drop max blocks/SM**.\n- **More registers**: faster per-thread state but can **reduce occupancy**; profile spill.\n- Prefer **SMEM for tile staging** and **regs for per-lane accumulators** in classic GEMM.\n\n## NVIDIA bank-conflict mental model\n\n- Address within warp: `bank = (offset_in_bytes / 4) % 32` for classic layouts; **32 lanes** hitting the same bank on the same cycle → serial replays.\n- **Padding** `N_stride + 1` (FP32) is the minimal skew; larger pads sometimes help **double-buffer** pointer math stay conflict-free across stages.\n- **Swizzle** maps logical `(row,col)` to physical addresses so MMA loads spread across banks (see CUTLASS/Triton shared layouts).\n\n## Store coalescing and atomics\n\n- **Global stores** follow the same contiguous-lane rule as loads; misaligned **partial tiles** at matrix edges often need **predicated narrow stores** rather than scalar scatter.\n- **Atomics** break coalescing and hurt bandwidth; avoid in inner loops unless algorithmically required (e.g. some reductions).\n\n## AMD LDS pressure signals\n\n- If **VGPR spill** or **low wave count** appears when LDS grows, **shrink tile** or move stable data to **regs** / **global** with prefetch.\n- **rocprof**: rising **LDS bank conflicts** or **stall_cycles** alongside LDS instructions flags layout issues analogous to NVIDIA bank replay.\n\n## Agent Instructions\n\n1. From profiling, classify **global vs L2 vs LDS** bottlenecks (sector efficiency, hit rates, LDS bank conflicts if exposed).\n2. Fix **access patterns first** (stride, thread→address mapping), then add **vector widths** aligned to 16/128/256 B as vendor-appropriate.\n3. If using pipelining, align **`num_stages`** with buffer counts and verify **bank conflict-free** SMEM/LDS layouts (pad or swizzle).\n4. On **AMD**, assume **64-byte L1 line** behavior when reasoning about spatial locality; validate with **TCC/L2** counters.\n5. Escalate to **AutoKernel Tier 3** if math dominates after memory patterns are clean.\n",
+    "skills/optimization/tier3-compute-fusion/SKILL.md": "---\nname: gpu-opt-tier3-compute-fusion\ndescription: >-\n  Tightens inner-loop math, mixed precision, fused epilogues, and fast math intrinsics for GPU\n  kernels. Use when kernels are compute-bound, epilogue-bound, or dominated by elementwise ops\n  around matmul-like cores.\n---\n\n# Tier 3: Compute Optimization and Fusion\n\n**AutoKernel Tier 3**: reduce instructions per useful flop and fuse memory round-trips into the same kernel pass.\n\n## Mixed precision\n\n- Use **FP16/BF16/FP8** for inputs where acceptable; keep **FP32 (or wider) accumulators** for reductions and matmul (`tl.dot` acc) to preserve accuracy.\n- Match **layout and instruction** (e.g. tensor/MMA width) to the narrow type actually used.\n\n## Fused epilogue patterns\n\nFuse into the same kernel to avoid extra global traffic:\n\n| Pattern | When it matters |\n|---------|------------------|\n| **Bias** (row/col) | LLM linear layers, conv fc |\n| **Scale / per-channel scale** | quantization, norm fusion |\n| **Activation** (GELU, ReLU, clamp) | MLP blocks |\n| **Quantize to int8/fp8** | inference export |\n\n**Rule**: if the epilogue is **memory-bandwidth limited**, fusion is high ROI; if already **compute-saturated**, fusion still saves launches but may need register tuning.\n\n## Inner loop hygiene\n\n- **Hoist invariants** out of the K (inner) loop; keep hot paths branch-free.\n- **Reduce branches** on lanes: predication and masks beat divergent `if` in inner loops.\n- **Unroll** only where it hides latency without blowing register budget.\n\n## Fast math intrinsics (CUDA/HIP style)\n\n| Intrinsic / pattern | Typical use | Caveat |\n|---------------------|-------------|--------|\n| `__expf`, `__exp10f` | softmax, activations | lower precision vs libm |\n| `rsqrtf`, `__frsqrt_rn` | norm, attention | acceptable for ML norms with care |\n| `__sincosf` | rotary, trig | pair eval saves bandwidth |\n| `__fdividef` | non-critical divisions | faster, less IEEE |\n\n**When each matters**: **transcendentals** dominate in softmax/attention/layer-norm; **fdivide** helps cheap color-space or scaling loops. Prefer **intrinsics in hot paths**, library precision on **numerically sensitive** reductions.\n\n## Compiler and framework flags (orientation)\n\n- CUDA **`--use-fast_math`** (or equivalent) globally enables aggressive approximations; prefer **scoped intrinsics** when you need **deterministic** training behavior.\n- In Triton, prefer **explicit casts** and **`tl.math`** / libdevice-style ops that match the desired **IEEE vs fast** semantics for the pass.\n\n## When *not* to fuse\n\n- If the epilogue is **already bandwidth-light** and fusion **spills registers** causing occupancy collapse, measure **end-to-end** against a two-kernel sequence.\n- If **different dtypes** or **layout transforms** force expensive **repack** in-register, a dedicated **transpose/reorder** kernel may win.\n\n## Agent Instructions\n\n1. Confirm **bottleneck is compute** (high % peak FLOPS, low memory util) before aggressive math shortcuts.\n2. Identify **epilogue inputs/outputs**; if separate kernels exist between matmul and bias/act/quantize, plan a **single-store** fused path.\n3. Audit the **innermost loop** for invariant loads and branches; refactor to **mask/predication**.\n4. Select **fast math** only where error budgets allow; document accuracy tradeoffs for training vs inference.\n5. If still bound by **launch or tail effects**, continue to **AutoKernel Tier 4** (scheduling).\n",
+    "skills/optimization/tier4-advanced-scheduling/SKILL.md": "---\nname: gpu-opt-tier4-advanced-scheduling\ndescription: >-\n  Applies Split-K, persistent kernels, Stream-K/Stream-K++, warp specialization, and multi-GPU\n  fused schedules. Use when simple tiling leaves tails, load imbalance, or excessive kernel\n  launch overhead on large GPUs.\n---\n\n# Tier 4: Advanced Scheduling\n\n**AutoKernel Tier 4** addresses **parallelism structure** beyond per-block tiling: how work maps to SMs over time and across chips.\n\n## Split-K with reduction\n\n- **Idea**: Multiple blocks partial-sum along K; **atomic** or **second-phase reduction** to finalize C.\n- **Use when**: Increasing `BLOCK_K` alone overspills SMEM/regs or hurts occupancy, but more **K-parallelism** improves utilization.\n- **Cost**: Extra **HBM traffic** for partials unless reduction is fused; watch **atomics** on small tiles.\n\n## Persistent kernels\n\n- **Idea**: Launch **~#SMs** blocks (or similar) that **loop internally** over many output tiles, reusing registers/SMEM across tiles.\n- **Benefits**: Amortizes **launch latency**, improves **L2 locality** with controlled traversal order.\n- **Risks**: Complex **grid-stride** indexing; harder debugging. Pair with **ordered tile scheduling** for cache affinity.\n\n## Stream-K / Stream-K++\n\n- **Problem**: Classic 2D tiling leaves **tail imbalance** (last waves idle).\n- **Idea**: **Stream** fractional K contributions across blocks so SMs stay busy; **Stream-K++** refines reduction and scheduling for fewer barriers.\n- **When**: Large rectangular GEMMs on **high SM-count** GPUs where occupancy is uneven.\n\n## Warp specialization (Hopper-class)\n\n- **Pattern**: **Producer warps** (TMA / async copy / transport) vs **consumer warps** (WGMMA / math).\n- **Goal**: Overlap **bulk memory movement** with **tensor-core compute** without starving either side.\n- **When**: Kernels already use **TMA/WGMMA** pipelines; not a first step for simple Triton dot kernels.\n\n## Multi-GPU: compute + communication fusion\n\n- **Overlap**: **NCCL/RCCL** collectives scheduled alongside **independent compute** on separate streams (or fused schedules in framework runtimes).\n- **Fusion patterns**: **All-reduce + gradient GEMM** pipelining, **tensor-parallel** shards with **next-layer prefetch**.\n- **Watch**: **Bubble** minimization dominates; profile both **network** and **GPU** timelines.\n\n## Picking a strategy (quick matrix)\n\n| Symptom | Try first | Watch for |\n|---------|-----------|-----------|\n| K too large for one tile’s SMEM | **Split-K** | Partial traffic + atomics |\n| Huge grid, tiny per-kernel time | **Persistent** | Correctness of tile iterator |\n| Classic 2D tail idle on big GPU | **Stream-K** | Reduction complexity |\n| Hopper + TMA in play | **Warp specialization** | Producer/consumer deadlock |\n| TP/PP pipeline bubbles | **Comm/compute overlap** | Ordering / race bugs |\n\n## Interaction with AutoKernel Tier 6\n\n- Some playbooks treat **tooling/automation** (search, DSL lowering) as a final tier; scheduling choices here should still be **expressed as reproducible config knobs** for autotuners.\n\n## Agent Instructions\n\n1. Only adopt Tier 4 after **Tier 1–3** are sane; confirm imbalance or launch overhead with a **timeline profiler** (NSYS/rocprof traces).\n2. For **tail-heavy** matmuls, prototype **Stream-K** or **persistent** variants against a **Split-K** baseline; compare **effective TFLOPS** and **code complexity**.\n3. On **Hopper**, if using advanced APIs, evaluate **warp-specialized** pipelines vs monolithic blocks using profiling counters for **TMA vs math overlap**.\n4. For **multi-GPU**, map **critical path** (comm vs compute) and prefer **fused/overlapped** schedules where safe.\n5. Align documentation and tuning notes with **AutoKernel Tier 5** (vendor-specific caps) before shipping production configs.\n",
+    "skills/optimization/tier5-arch-amd-rocm/SKILL.md": "---\nname: gpu-opt-tier5-amd-rocm\ndescription: >-\n  AMD ROCm/CDNA3 tuning: MI300X topology, LDS/L2, wavefront-64 and Triton num_warps, MFMA,\n  HIP/Triton limitations, rocprof counters, and coalescing. Use when optimizing for gfx942/MI300\n  or comparing against NVIDIA H100 baselines.\n---\n\n# Tier 5 (AMD ROCm): CDNA3 / MI300-Class Optimization\n\n**AutoKernel Tier 5** vendor fork for **ROCm** and **CDNA**.\n\n## MI300X (representative specs, verify for SKU)\n\n| Quantity | Typical class |\n|----------|----------------|\n| CUs | **304** (full die class) |\n| HBM bandwidth | **~5.3 TB/s** (spec tier) |\n| HBM capacity | **192 GB** HBM3 class |\n| LDS per CU | **~64 KB** (architecture guidance) |\n| L2 | **~256 MB** shared |\n\n## Wavefront-64 and Triton\n\n- **One warp = 64 threads**. `num_warps=4` ⇒ **256** threads/block (common baseline).\n- Map **lane layouts** so contiguous lanes hit contiguous memory for **global coalescing**.\n\n## Occupancy hints: `waves_per_eu`\n\n- **Compute-heavy**: often start **2–4** waves/EU.\n- **Memory-heavy**: try **4–8** waves/EU to hide latency (empirical; co-tune with LDS footprint).\n\n## MFMA matrix cores\n\n- Prefer **MFMA-friendly** `BLOCK_K` (commonly **32** for FP16-class) and layouts that compilers can lower to **matrix fragments**.\n- Profile **SQ_ACTIVE_INST_MFMA** vs **VALU** to confirm tensor path use.\n\n## HIP / Triton practical limitations\n\n- **`num_stages >= 1`** on HIP (stage-0 patterns can fail).\n- Some math: **`tl.math.tanh`** (and similar) may be missing or require **polyfill**—check Triton version and ROCm support matrix.\n\n## Memory: coalescing and lines\n\n- **256-byte** optimal global transactions are a useful mental model for **full-line** utilization; align leading dimensions when possible.\n- **64-byte L1** line behavior informs **spatial locality** next to vector width.\n\n## rocprof (counters mindset)\n\n- Track **TCC** (L2) hits/misses, **SQ** activity, **MFMA** ops, **VALU** busy.\n- Derive **MFMA efficiency** and **memory BW utilization** similar to the profiling skill; compare against **5.3 TB/s** peak class.\n\n## vs H100 (orientation table)\n\n| Aspect | H100 (Hopper) | MI300X (CDNA3) |\n|--------|----------------|----------------|\n| Thread warp | 32 | **64** |\n| Matrix API | WGMMA + TMA | **MFMA** |\n| Peak BW / FLOPS | SKU-specific | **HBM3 + MFMA** class |\n| Tools | NCU, NSYS | **rocprof**, ROCm SMI |\n| Approximate FLOPS/BW class | H100 HBM3 + Hopper TC | **304 CU** + **5.3 TB/s** + **MFMA** class |\n\n## Kernel agent integration\n\n- When generating HIP/Triton, cross-check **gfx target**, **ROCm version**, and **Triton support** before emitting MFMA-dependent tile sizes.\n- Prefer **measured** `rocprof`/`rocprofv2` stats over static caps when advising “peak” percentages in diagnosis.\n\n## Agent Instructions\n\n1. Confirm **GPU name / gfx** (`rocminfo`) and **ROCm + Triton** versions before promising intrinsics.\n2. Build autotune grids with **`BLOCK_K=32`** prominent; tune **`num_warps`** on a **64-thread warp** basis.\n3. Set **`waves_per_eu`** in the memory-vs-compute direction indicated by rocprof.\n4. Replace unsupported **Triton math** with **handwritten** or **torch** fallbacks when required.\n5. For cross-vendor claims, cite **measured** NCU vs rocprof rooflines, not spec sheets alone.\n",
+    "skills/optimization/tier5-arch-nvidia/SKILL.md": "---\nname: gpu-opt-tier5-nvidia-arch\ndescription: >-\n  NVIDIA-specific caps and tuning: Hopper SM90 (WGMMA, TMA, cluster SMEM), Ampere SM80\n  (cp.async, TF32, 2:4 sparsity), Ada SM89 consumer (4090-class). Use when targeting a known\n  compute capability or interpreting NCU metrics for a specific chip.\n---\n\n# Tier 5 (NVIDIA): Architecture-Specific Optimization\n\n**AutoKernel Tier 5** maps generic techniques to **SKU capabilities**. This file is the **NVIDIA** branch.\n\n## Compute capability quick reference\n\n| Arch | CC | Examples | Notes |\n|------|-----|----------|--------|\n| Ampere | **8.0** | A100 | TF32 TC, cp.async, 2:4 structured sparsity (sparse TC) |\n| Ada Lovelace | **8.9** | RTX 4090 | **16384** \"CUDA cores\" (marketing aggregate), **~1008 GB/s** ref bandwidth class |\n| Hopper | **9.0** | H100 | **WGMMA**, **TMA**, **cluster** SMEM, up to **~228 KB SMEM**/SM (config-dependent) |\n\n*Exact SMEM/L1 splits and clocks vary by SKU; always verify in NCU \"Launch Statistics\" and occupancy calculator.*\n\n## H100 / SM90 (Hopper)\n\n- **WGMMA**: prefer **tensor-core-native** tile multiples; pair with **TMA** for async bulk loads.\n- **TMA**: reduces load instruction overhead; needs **correct tensor descriptors** and alignment.\n- **Cluster**: **distributed shared memory** across blocks in a cluster for multi-block cooperation.\n- **Autotune tips**: sweep **cluster size**, **TMA vs cp.async** paths, **WGMMA K-dimension** tiling; watch **register** explosion on wide tiles.\n\n## A100 / SM80 (Ampere)\n\n- **cp.async**: pipeline global→shared; tune **`num_stages`** with occupancy.\n- **TF32**: training default for many frameworks; know accuracy implications vs FP16/BF16 TC.\n- **2:4 sparsity**: only wins when weights are **structured-sparse** and paths are enabled end-to-end.\n\n## 4090 / Ada (SM89)\n\n- High **FP16/BF16** throughput for consumer bandwidth; often **memory-bound** on large models despite high FLOPS.\n- Prefer **vectorized loads**, **fusion**, and **L2-friendly** traversal; autotune similarly to Ampere but respect **smaller L2** vs datacenter parts in some metrics.\n\n## Autotune workflow (NVIDIA)\n\n1. Fix **Tier 1–2** (tiling + memory) before Hopper-only features.\n2. Use **NCU** to separate **DRAM vs L1TEX vs TC** bottlenecks.\n3. For Hopper, add **WGMMA/TMA** knobs only when baseline kernel already uses compatible abstractions (e.g. CUTLASS 3.x, cuBLASLt, or hand-written PTX).\n\n## NCU metrics cheat sheet (orientation)\n\n| Symptom in NCU | Likely lever |\n|----------------|--------------|\n| Low `sm__throughput` + low `dram__throughput` | Occupancy / launch / tail (Tier 1/4) |\n| High DRAM, low TC active | Memory path / vectorization (Tier 2) |\n| High TC, reg spills | Tile size / WGMMA shape / fewer live tensors |\n\n## Blackwell / future SKUs\n\n- Treat unseen **CC** values as **unknown**: fall back to **prior-gen patterns**, then re-measure; do not assume Hopper knobs map 1:1 without vendor release notes.\n\n## Agent Instructions\n\n1. Detect **CC** (`nvidia-smi`, NCU header) and load **SKU-specific peak** FLOPS/BW for roofline.\n2. Choose instruction family: **WGMMA+TMA (9.0)** vs **WMMA/cp.async (8.x)** vs legacy paths.\n3. Record **SMEM usage** per kernel; on Hopper, include **cluster** constraints if used.\n4. Cross-link **GEMM/flash** skills for op-specific templates; keep this file for **capability gating** only.\n5. Treat numbers like **16384 cores** and **1008 GB/s** as **marketing/spec sheet** anchors—always **measure** on the user's card.\n",
+    "skills/system/benchmark/SKILL.md": "---\nname: kernel-benchmark\ndescription: >-\n  Unified kernel benchmarking protocol producing JSON results with latency, TFLOPS, GBps,\n  and comparison against PyTorch baselines. Covers warmup, timing, and cross-platform reporting.\n  Use when benchmarking kernels, measuring performance, or comparing implementations.\n---\n\n# Kernel Benchmark Skill\n\n## Overview\n\nConsistent benchmarking methodology across all kernels and platforms.\nEvery benchmark produces a JSON result for automated tracking.\n\n## Protocol\n\n### 1. Warmup\n\nRun the kernel `n_warmup` times (default: 25) to:\n- Trigger JIT compilation (Triton autotune)\n- Warm up GPU caches and frequency scaling\n- Call `torch.cuda.synchronize()` after warmup\n\n### 2. Timed Runs\n\n```python\ntorch.cuda.synchronize()\nstart = time.perf_counter()\nfor _ in range(n_iter):  # default: 100\n    kernel(inputs)\ntorch.cuda.synchronize()\nelapsed = (time.perf_counter() - start) / n_iter\n```\n\n### 3. Metrics Computation\n\n| Kernel Type | Primary Metric | Formula |\n|-------------|---------------|---------|\n| Compute-bound (GEMM, attention) | TFLOPS | `flops / elapsed / 1e12` |\n| Memory-bound (norm, softmax, RoPE) | GBps | `total_bytes / elapsed / 1e9` |\n\nFLOPS formulas:\n- GEMM: `2 * M * N * K`\n- Attention (fwd): `4 * B * H * N * N * D` (2 GEMMs)\n- Softmax/Norm: N/A (use GBps)\n\nBytes formulas:\n- Softmax: `rows * cols * elem_size * 2` (read + write)\n- RMSNorm: `rows * cols * elem_size * 3` (read x, read w, write out)\n\n### 4. Baseline Comparison\n\nAlways compare against PyTorch:\n```python\nvs_pytorch = triton_metric / pytorch_metric\n```\n\n### 5. Output Format\n\n```json\n{\n  \"kernel\": \"gemm\",\n  \"gpu\": \"NVIDIA GeForce RTX 4090\",\n  \"vendor\": \"nvidia\",\n  \"correctness\": true,\n  \"latency_us\": 101.9,\n  \"tflops\": 168.68,\n  \"gbps\": null,\n  \"vs_pytorch\": 1.014,\n  \"dtype\": \"float16\",\n  \"shape\": \"2048x2048x2048\",\n  \"status\": \"pass\"\n}\n```\n\n## Agent Instructions\n\nWhen benchmarking:\n\n1. Run correctness check first (never report perf for incorrect kernels)\n2. Use enough warmup iterations for autotune to settle (25-50)\n3. Use enough timed iterations for stable results (100-200)\n4. Always `torch.cuda.synchronize()` before and after timing\n5. Report both absolute metrics and vs-PyTorch ratio\n6. Save JSON to `experiments/` for tracking\n",
+    "skills/system/bottleneck-diagnosis/SKILL.md": "---\nname: gpu-kernel-bottleneck-diagnosis\ndescription: >-\n  Classifies GPU kernel bottlenecks (memory, compute, latency) from profiling metrics and applies\n  GEAK-style workload guidance: what to prefer, consider, or deprioritize. Use after NCU/rocprof\n  or when choosing between fusion, tiling, and scheduling changes without a clear winner.\n---\n\n# Bottleneck Diagnosis (GEAK / Workload Guidance)\n\nIntegrates **GEAK-style `workload_guidance`** with the **[AutoKernel](https://github.com/RightNow-AI/autokernel) six-tier playbook**: diagnosis picks **which tier** to emphasize next.\n\n## Three bottleneck types\n\n### 1. Memory-bound\n\n- **Signals**: **Roofline** memory regime: **HBM BW % of peak** tends **high** while **compute % of peak** stays **low**; low **arithmetic intensity**; load/store stalls dominate in timelines.\n- **Guidance**: **Prefer** algorithmic **fusion** (fewer round-trips), **tiling** that improves **reuse** (L2 grouping, larger K-tiles), **vectorized loads**, **Split-K** only if it does not inflate traffic.\n- **Deprioritize**: Blind **instruction shaving** when bytes dominate.\n\n### 2. Compute-bound\n\n- **Signals**: High **% peak TFLOPS** (or MFMA/TC active cycles), **VALU/MFMA** hot, memory counters sub-saturated.\n- **Guidance**: **Prefer** **MFMA/WGMMA-friendly** shapes, **inner-loop** cleanup, **mixed precision** with safe accumulators, **fast math** where numerics allow.\n- **Deprioritize**: Extra **fusion** that only saves launches but increases **register** pressure without BW win.\n\n### 3. Latency-bound\n\n- **Signals**: Many **short kernels**, low **occupancy**, pipeline bubbles, **launch overhead** visible in timeline; often **low duration** per kernel.\n- **Guidance**: **Prefer** **kernel fusion**, **persistent** loops, **fewer synchronizations**, overlapping **comm + compute** in multi-GPU cases.\n- **Deprioritize**: Heavy **Split-K** atomics or complex schedules before addressing **launch granularity**.\n\n## Metrics-driven flowchart (roofline-style)\n\nUse **measured** `% peak memory bandwidth` and `% peak FP16/FP8 TFLOPS` (or vendor counters):\n\n```text\nIF dram_bw_pct is high AND tflops_pct is low\n   → memory-bound → Tiers 1–2 first, then fusion (Tier 3)\nELIF tflops_pct is high AND dram_bw_pct is moderate/low\n   → compute-bound → Tier 3 math/MMA, then Tier 1 occupancy/reg tuning\nELIF both percentages are low AND many short kernels / low occupancy\n   → latency-bound → Tier 4 persistence/fusion, reduce launches\nELSE\n   → mixed / unclear → gather second metrics (L2 hit, TC active, wave occupancy)\n```\n\n## Priority framework (GEAK-style)\n\n| Priority | Meaning | Example actions |\n|----------|---------|-----------------|\n| **Prefer First** | Highest ROI for this diagnosis | Memory-bound → L2 tiling + vector loads |\n| **Consider** | Secondary, validate with profile | Compute-bound → fast math after MMA layout fixed |\n| **Deprioritize** | Low ROI or harmful until root cause shifts | Latency-bound → micro-optimizing div/sqrt in cold code |\n\n## Mapping to AutoKernel tiers\n\n| Bottleneck | Primary tiers |\n|------------|----------------|\n| Memory | **1–2** (tile + hierarchy), **3** fusion |\n| Compute | **1** occupancy, **3** math, **5** vendor MMA |\n| Latency | **4** scheduling, **3** fusion, **multi-GPU** overlap |\n\n## Agent Instructions\n\n1. Ingest **metrics.json**-style fields (`dram_throughput_pct`, `sm_throughput_pct` / MFMA, `occupancy_pct`, kernel count, duration) from the profiling skill.\n2. Apply the **flowchart**; label the workload **memory / compute / latency** with one paragraph of evidence.\n3. Emit recommendations tagged **Prefer First**, **Consider**, **Deprioritize** aligned with GEAK workload guidance habits.\n4. Point to the **next AutoKernel tier file** (tier1…tier5) matching the diagnosis; avoid jumping to Hopper-only features on AMD (and vice versa).\n5. If metrics conflict, request **one extra counter pass** (e.g. L2 hit, TC active) before suggesting invasive Tier 4 rewrites.\n",
+    "skills/system/optimize-loop/SKILL.md": "---\nname: iterative-kernel-optimization-loop\ndescription: >-\n  Orchestrates continuous kernel optimization by chaining profiling, bottleneck diagnosis,\n  tier-based optimization, verification, and benchmarking into an iterative loop.\n  This is the \"main program\" that drives the other skills. Use when you want to\n  iteratively optimize a kernel until it meets a performance target, similar to AutoKernel.\n---\n\n# Iterative Kernel Optimization Loop\n\n## Overview\n\nThis skill is the **orchestration layer** that chains the other skills into an automated,\niterative optimization cycle. It turns `awesome_kernel_skills` from a static knowledge\ncollection into an **agent-driven optimization engine**, similar to\n[AutoKernel](https://github.com/RightNow-AI/autokernel)'s `program.md`.\n\nThe agent (Cursor / Claude Code / Codex) acts as the execution engine -- this skill\ntells it **what to do, in what order, and when to stop**.\n\n## The Loop\n\n```\n                    ┌──────────────────────────────┐\n                    │  INPUT                        │\n                    │  - kernel source (.py)        │\n                    │  - target metric & threshold  │\n                    │  - target GPU (nvidia/amd)    │\n                    └──────────────┬───────────────┘\n                                   ▼\n              ┌─── Phase 0: BASELINE ───────────────────┐\n              │  Run test_*.py → record baseline perf   │\n              │  If no test exists, create one first     │\n              └──────────────┬──────────────────────────┘\n                             ▼\n        ┌────────────────────────────────────────────┐\n        │  Phase 1: PROFILE                          │\n   ┌───▶│  Skill: profiling/SKILL.md                 │\n   │    │  Action: run NCU or rocprof                │\n   │    │  Output: metrics.json                      │\n   │    └──────────────┬─────────────────────────────┘\n   │                   ▼\n   │    ┌────────────────────────────────────────────┐\n   │    │  Phase 2: DIAGNOSE                         │\n   │    │  Skill: bottleneck-diagnosis/SKILL.md      │\n   │    │  Action: classify memory/compute/latency   │\n   │    │  Output: bottleneck type + tier priority    │\n   │    └──────────────┬─────────────────────────────┘\n   │                   ▼\n   │    ┌────────────────────────────────────────────┐\n   │    │  Phase 3: OPTIMIZE                         │\n   │    │  Skills: tier1~5 SKILL.md (by priority)    │\n   │    │  Action: apply ONE optimization at a time  │\n   │    │  Rule: modify kernel, keep changes small   │\n   │    └──────────────┬─────────────────────────────┘\n   │                   ▼\n   │    ┌────────────────────────────────────────────┐\n   │    │  Phase 4: VERIFY                           │\n   │    │  Skill: verification/SKILL.md              │\n   │    │  Action: run test → correctness check      │\n   │    │  If FAIL → revert change, try next tier    │\n   │    └──────────────┬─────────────────────────────┘\n   │                   ▼\n   │    ┌────────────────────────────────────────────┐\n   │    │  Phase 5: BENCHMARK                        │\n   │    │  Skill: benchmark/SKILL.md                 │\n   │    │  Action: measure TFLOPS or GBps            │\n   │    │  Compare vs previous iteration             │\n   │    └──────────────┬─────────────────────────────┘\n   │                   ▼\n   │    ┌────────────────────────────────────────────┐\n   │    │  Phase 6: DECIDE                           │\n   │    │  - Target met?          → DONE, log result │\n   │    │  - Perf improved?       → log, continue    │\n   │    │  - Perf regressed?      → revert, try next │\n   │    │  - All tiers exhausted? → DONE, log best   │\n   │    │  - Max iterations hit?  → DONE, log best   │\n   │    └──────────────┬─────────────────────────────┘\n   │                   │ not done\n   └───────────────────┘\n```\n\n## Configuration\n\nBefore starting the loop, establish these parameters:\n\n```yaml\nkernel_path: skills/kernels/softmax/triton_template.py\ntest_path: skills/kernels/softmax/test_softmax.py\ntarget_metric: gbps            # \"tflops\" or \"gbps\"\ntarget_value: 800              # target GBps (or TFLOPS)\ntarget_pct_of_peak: 0.70       # alternative: 70% of HBM peak\nmax_iterations: 5              # stop after N optimization rounds\ngpu: auto                      # \"nvidia\", \"amd\", or \"auto\" (detect)\n```\n\n## Phase Details\n\n### Phase 0: Baseline\n\n1. Detect GPU via `scripts/detect_gpu.py`\n2. Run `test_*.py --json` to get baseline correctness + performance\n3. Record in optimization log:\n\n```markdown\n## Iteration 0 (Baseline)\n- GPU: NVIDIA RTX 4090\n- Correctness: PASS\n- GBps: 1747.0\n- Target: 2000 GBps (70% of peak)\n- Gap: 253 GBps (12.6%)\n```\n\n### Phase 1: Profile\n\nRead `profiling/SKILL.md` and execute:\n- NVIDIA: `ncu --set full -o iter{N}_profile python test_*.py`\n- AMD: `rocprof --stats python test_*.py`\n\nExtract key metrics into structured form.\n\n### Phase 2: Diagnose\n\nRead `bottleneck-diagnosis/SKILL.md` and apply the flowchart:\n\n```\nIF dram_bw_pct high AND compute_pct low → memory-bound → Tier 1-2, then 3\nELIF compute_pct high                   → compute-bound → Tier 3, then 1, 5\nELIF both low                           → latency-bound → Tier 4, then 3\n```\n\nOutput a **tier priority list**, e.g. `[tier2, tier1, tier3]`.\n\n### Phase 3: Optimize\n\nFor the highest-priority **untried** tier:\n1. Read the corresponding `tier{N}/SKILL.md`\n2. Read the kernel's own `SKILL.md` for kernel-specific guidance\n3. Apply **ONE** focused change (do not change multiple things at once)\n4. Common changes by tier:\n\n| Tier | Typical Change |\n|------|---------------|\n| 1 | Adjust BLOCK_SIZE, num_warps, GROUP_SIZE_M |\n| 2 | Improve coalescing, add vectorized loads, fix bank conflicts |\n| 3 | Fuse epilogue, switch to fast math intrinsics, fix accumulator dtype |\n| 4 | Switch to persistent kernel, add Split-K |\n| 5 | Use arch-specific features (TMA, WGMMA, MFMA shapes) |\n\n**Rule**: Save a copy of the kernel before modifying so you can revert.\n\n### Phase 4: Verify\n\nRun `test_*.py` (correctness portion only):\n- **PASS** → proceed to benchmark\n- **FAIL** → revert the change, mark this tier+change as \"tried/failed\", pick next\n\n### Phase 5: Benchmark\n\nRun `test_*.py --json` (full benchmark):\n- Record TFLOPS or GBps\n- Compare vs previous iteration\n\n### Phase 6: Decide\n\n```python\nif current_metric >= target_value:\n    status = \"TARGET_MET\"\nelif current_metric > best_metric:\n    best_metric = current_metric\n    best_kernel = save_snapshot()\n    status = \"IMPROVED\"\nelif current_metric <= prev_metric:\n    revert_to_previous()\n    mark_tier_change_as_tried()\n    status = \"REGRESSED\"\n\nif iteration >= max_iterations or all_tiers_exhausted():\n    restore_best_kernel()\n    status = \"MAX_ITERATIONS\"\n```\n\n## Optimization Log Format\n\nAppend to `experiments/README.md` after each iteration:\n\n```markdown\n## Optimization: {kernel_name} on {gpu}\n\n| Iter | Action | Tier | Correctness | Metric | Delta | Status |\n|------|--------|------|-------------|--------|-------|--------|\n| 0 | baseline | - | PASS | 1747 GBps | - | - |\n| 1 | increase BLOCK_SIZE 4096→8192 | T1 | PASS | 1820 GBps | +4.2% | improved |\n| 2 | vectorized loads (float4) | T2 | PASS | 1955 GBps | +7.4% | improved |\n| 3 | multi-row=8 | T1 | FAIL | - | - | reverted |\n| 4 | fuse with layernorm | T3 | PASS | 2010 GBps | +2.8% | TARGET_MET |\n\nFinal: 2010 GBps (70.2% of peak), 4 iterations, target met.\n```\n\n## Guardrails\n\n1. **One change per iteration**: Never apply two optimizations simultaneously. You cannot attribute improvement (or regression) otherwise.\n2. **Always verify before benchmark**: Never measure performance of an incorrect kernel.\n3. **Revert on regression**: Do not keep a change that makes things slower unless it enables a larger subsequent optimization (document why).\n4. **Respect platform**: Check `tier5-arch-nvidia` or `tier5-arch-amd-rocm` before using arch-specific features. Never use Hopper TMA on AMD.\n5. **Max 5 iterations default**: Diminishing returns kick in fast. If stuck after 5 rounds, the kernel may need an algorithmic redesign rather than tuning.\n6. **Log everything**: Every iteration must be recorded. Future optimization attempts should read the log to avoid repeating failed changes.\n\n## When Profiling Is Not Available\n\nIf NCU/rocprof cannot be run (e.g. container restrictions, no root), fall back to:\n\n1. Use `test_*.py --json` benchmark numbers as the only signal\n2. Classify based on kernel type from the kernel's `SKILL.md` (it states bound type)\n3. Follow the tier priority for that bound type\n4. Iterate on autotune configs (Tier 1) first -- this is always safe\n\n## Agent Instructions\n\nWhen asked to optimize a kernel iteratively:\n\n1. **Read this skill first** to understand the loop structure\n2. Establish target: ask the user or derive from GPU peak specs\n3. Run Phase 0 to get baseline\n4. Execute the loop: Profile → Diagnose → Optimize → Verify → Benchmark → Decide\n5. After each iteration, update the optimization log in `experiments/`\n6. Stop when target is met, max iterations reached, or all viable tiers are exhausted\n7. Report final result with summary table\n\nWhen profiling tools are available, always start with Phase 1 (profile).\nWhen they are not, skip to Phase 3 using the kernel's documented bound type.\n\n## Relationship to Other Skills\n\n```\noptimize-loop (this skill) ─── orchestrates ───▶ all other skills\n  │\n  ├─ Phase 1 → profiling/SKILL.md\n  ├─ Phase 2 → bottleneck-diagnosis/SKILL.md\n  ├─ Phase 3 → tier1~5/SKILL.md + kernels/*/SKILL.md\n  ├─ Phase 4 → verification/SKILL.md\n  └─ Phase 5 → benchmark/SKILL.md\n```\n\n## References\n\n- [AutoKernel program.md](https://github.com/RightNow-AI/autokernel) -- The original iterative agent-driven kernel optimization loop\n- [KernelSkill dual-level memory](https://arxiv.org/abs/2603.10085) -- Reusable optimization skills + short-term backtracking memory\n",
+    "skills/system/profiling/SKILL.md": "---\nname: kernel-profiling\ndescription: >-\n  Profile GPU kernels using NCU (NVIDIA) or rocprof (AMD) to collect performance metrics.\n  Produces structured metrics.json with throughput, bandwidth, occupancy, and bottleneck classification.\n  Use when profiling kernels, collecting NCU/rocprof data, or diagnosing performance issues.\n---\n\n# Kernel Profiling Skill\n\n## Overview\n\nProfiling is the first step in any kernel optimization loop. This skill covers collecting\nhardware performance counters and deriving actionable metrics on both NVIDIA and AMD GPUs.\n\n## NVIDIA: Nsight Compute (NCU)\n\n### Quick Command\n\n```bash\nncu --set full -o profile_output python your_kernel.py\n```\n\n### Key Metrics to Collect\n\n| Metric | What It Tells You |\n|--------|-------------------|\n| `sm__throughput.avg.pct_of_peak_sustained_elapsed` | SM utilization |\n| `dram__throughput.avg.pct_of_peak_sustained_elapsed` | HBM bandwidth utilization |\n| `l1tex__throughput.avg.pct_of_peak_sustained_elapsed` | L1/Tex cache pressure |\n| `sm__warps_active.avg.pct_of_peak_sustained_active` | Occupancy |\n| `smsp__sass_average_data_bytes_per_sector_mem_global_op_ld.pct` | Global load efficiency |\n\n### Roofline Derivation\n\n```python\narithmetic_intensity = flops / bytes_transferred\npeak_flops = gpu_spec[\"fp16_tflops\"] * 1e12\npeak_bw = gpu_spec[\"hbm_bw_bytes\"]\nroofline_bound = min(peak_flops, arithmetic_intensity * peak_bw)\nachieved_pct = actual_flops / roofline_bound\n```\n\n## AMD: rocprof\n\n### Quick Command\n\n```bash\nrocprof --stats python your_kernel.py\n# Or with specific counters:\nrocprof -i counters.txt python your_kernel.py\n```\n\n### Key Counters\n\n```text\npmc : SQ_INSTS_VALU SQ_INSTS_MFMA_MOPS_FP16 SQ_INSTS_MFMA_MOPS_BF16\npmc : SQ_ACTIVE_INST_VALU SQ_ACTIVE_INST_MFMA SQ_BUSY_CYCLES\npmc : TCC_HIT TCC_MISS TCC_REQ\npmc : TCC_EA_RDREQ TCC_EA_WRREQ\n```\n\n### Derived Metrics\n\n| Metric | Formula | Target |\n|--------|---------|--------|\n| GPU Utilization | `GRBM_GUI_ACTIVE / GRBM_COUNT` | >90% |\n| MFMA Efficiency | `SQ_ACTIVE_INST_MFMA / SQ_BUSY_CYCLES` | >50% for matmul |\n| L2 Hit Rate | `TCC_HIT / TCC_REQ` | >80% for tiled kernels |\n| Memory BW Util | `(reads + writes) * line_size / time / peak_bw` | >70% for mem-bound |\n\n## Output Format\n\nProduce a `metrics.json`:\n\n```json\n{\n  \"kernel\": \"matmul\",\n  \"gpu\": \"RTX 4090\",\n  \"latency_us\": 101.9,\n  \"tflops\": 168.7,\n  \"gbps\": null,\n  \"occupancy_pct\": 85.2,\n  \"sm_throughput_pct\": 72.1,\n  \"dram_throughput_pct\": 45.3,\n  \"bottleneck\": \"compute\",\n  \"roofline_pct\": 68.5\n}\n```\n\n## Agent Instructions\n\n1. Detect GPU vendor (`scripts/detect_gpu.py`)\n2. Run appropriate profiler (NCU or rocprof)\n3. Parse output into structured metrics\n4. Classify bottleneck (memory / compute / latency)\n5. Feed into bottleneck-diagnosis skill for optimization recommendations\n",
+    "skills/system/verification/SKILL.md": "---\nname: kernel-verification\ndescription: >-\n  5-stage kernel correctness verification protocol for Triton and CUDA kernels.\n  Covers numerical correctness, dtype sensitivity, edge cases, determinism, and stress testing.\n  Use when verifying kernel correctness, running validation, or setting up test harnesses.\n---\n\n# Kernel Verification Skill (5-Stage)\n\n## Overview\n\nEvery kernel optimization must pass correctness verification before performance is measured.\nThis skill defines a 5-stage protocol adapted from AutoKernel.\n\n## Stage 1: Basic Correctness\n\nCompare kernel output against PyTorch reference on standard shapes.\n\n```python\nref = pytorch_reference(inputs)\nout = triton_kernel(inputs)\nassert torch.allclose(out.float(), ref.float(), atol=atol, rtol=rtol)\n```\n\n### Tolerance Guidelines\n\n| Dtype | atol | rtol | Notes |\n|-------|------|------|-------|\n| float32 | 1e-5 | 1e-5 | Strict |\n| float16 | 1e-2 | 1e-2 | FP16 has limited precision |\n| bfloat16 | 1e-1 | 1e-1 | BF16 has even less mantissa |\n| fp8 | 5e-1 | 5e-1 | Very coarse |\n\n## Stage 2: Dtype Sensitivity\n\nTest all target dtypes (fp16, bf16, fp32) and mixed combinations.\nMany bugs only appear in specific precision modes.\n\n## Stage 3: Edge Cases\n\nTest boundary conditions:\n- Dimensions not divisible by block size (e.g., M=127, K=33)\n- Very small inputs (1x1, 1xN)\n- Very large inputs (stress memory limits)\n- Zero-filled inputs, inf/nan inputs\n\n## Stage 4: Determinism\n\nRun the same input 10 times and verify bitwise identical output.\nNon-determinism indicates race conditions or uninitialized memory.\n\n```python\nresults = [triton_kernel(inputs) for _ in range(10)]\nfor r in results[1:]:\n    assert torch.equal(r, results[0]), \"Non-deterministic!\"\n```\n\n## Stage 5: Stress Test\n\nRun with large inputs and many iterations to catch:\n- Memory leaks (monitor GPU memory)\n- Numerical drift over repeated applications\n- Rare race conditions\n\n## Agent Instructions\n\nWhen verifying a kernel:\n\n1. Always run Stage 1 before measuring performance\n2. Run Stage 2 if the kernel will be used with multiple dtypes\n3. Run Stage 3 for kernels that will handle variable-length inputs (attention, MoE)\n4. Run Stage 4 for training kernels (backward pass must be deterministic)\n5. Run Stage 5 before declaring a kernel \"production ready\"\n\n## Quick Test Template\n\n```python\ndef verify_kernel(kernel_fn, ref_fn, input_gen, n_shapes=5, n_dtypes=2, n_repeats=3):\n    for shape in generate_shapes(n_shapes):\n        for dtype in [torch.float16, torch.bfloat16][:n_dtypes]:\n            inputs = input_gen(shape, dtype)\n            ref = ref_fn(*inputs)\n            for _ in range(n_repeats):\n                out = kernel_fn(*inputs)\n                assert torch.allclose(out.float(), ref.float(), atol=get_atol(dtype), rtol=get_rtol(dtype))\n    return True\n```\n"
+  },
+  "sha": "aba7662286ee19df68ce94cb7d363554f7157f0a",
+  "tree": [
+    {
+      "mode": "100644",
+      "path": "LEARNING_PATH.md",
+      "sha": "d4c8d52ab4ea0b017c78d0f2eef3f3182c1f09ed",
+      "size": 19433,
+      "type": "blob",
+      "url": "https://api.github.com/repos/ZJLi2013/awesome-kernel-skills/git/blobs/d4c8d52ab4ea0b017c78d0f2eef3f3182c1f09ed"
+    },
+    {
+      "mode": "100644",
+      "path": "README.md",
+      "sha": "c1a1037f050919750cab8ffb303266d96f58b013",
+      "size": 15000,
+      "type": "blob",
+      "url": "https://api.github.com/repos/ZJLi2013/awesome-kernel-skills/git/blobs/c1a1037f050919750cab8ffb303266d96f58b013"
+    },
+    {
+      "mode": "100644",
+      "path": "README_en.md",
+      "sha": "8f86d1db87f9be476ab776c1bdfba361d5c98f1b",
+      "size": 13037,
+      "type": "blob",
+      "url": "https://api.github.com/repos/ZJLi2013/awesome-kernel-skills/git/blobs/8f86d1db87f9be476ab776c1bdfba361d5c98f1b"
+    },
+    {
+      "mode": "040000",
+      "path": "experiments",
+      "sha": "9ce8266ccf522905b519e41f931d66f1c79f8fa2",
+      "type": "tree",
+      "url": "https://api.github.com/repos/ZJLi2013/awesome-kernel-skills/git/trees/9ce8266ccf522905b519e41f931d66f1c79f8fa2"
+    },
+    {
+      "mode": "100644",
+      "path": "experiments/README.md",
+      "sha": "7075b232fd106f7d58bd8eca35ebaa9acf50fed1",
+      "size": 5183,
+      "type": "blob",
+      "url": "https://api.github.com/repos/ZJLi2013/awesome-kernel-skills/git/blobs/7075b232fd106f7d58bd8eca35ebaa9acf50fed1"
+    },
+    {
+      "mode": "100644",
+      "path": "experiments/gemm_optimization.md",
+      "sha": "1e3eb5bd3e4aa41b63ca2f60dea5adbce6f76679",
+      "size": 8321,
+      "type": "blob",
+      "url": "https://api.github.com/repos/ZJLi2013/awesome-kernel-skills/git/blobs/1e3eb5bd3e4aa41b63ca2f60dea5adbce6f76679"
+    },
+    {
+      "mode": "040000",
+      "path": "scripts",
+      "sha": "d99acc1c24e116303281121797cbb9ae041a587f",
+      "type": "tree",
+      "url": "https://api.github.com/repos/ZJLi2013/awesome-kernel-skills/git/trees/d99acc1c24e116303281121797cbb9ae041a587f"
+    },
+    {
+      "mode": "100644",
+      "path": "scripts/detect_gpu.py",
+      "sha": "73f83c12c1ec11bc61766a94e6e2268a48c93032",
+      "size": 1755,
+      "type": "blob",
+      "url": "https://api.github.com/repos/ZJLi2013/awesome-kernel-skills/git/blobs/73f83c12c1ec11bc61766a94e6e2268a48c93032"
+    },
+    {
+      "mode": "100644",
+      "path": "scripts/run_all_tests.py",
+      "sha": "c71a77e3a6eb9f2f157d992cffc2271ba5bfd8be",
+      "size": 3614,
+      "type": "blob",
+      "url": "https://api.github.com/repos/ZJLi2013/awesome-kernel-skills/git/blobs/c71a77e3a6eb9f2f157d992cffc2271ba5bfd8be"
+    },
+    {
+      "mode": "040000",
+      "path": "skills",
+      "sha": "4c2f03c98b77121e3d7b502fe7f0e891c5402afb",
+      "type": "tree",
+      "url": "https://api.github.com/repos/ZJLi2013/awesome-kernel-skills/git/trees/4c2f03c98b77121e3d7b502fe7f0e891c5402afb"
+    },
+    {
+      "mode": "040000",
+      "path": "skills/kernels",
+      "sha": "4dd8d3a0ec90154d43ccd418c191574a1198d91e",
+      "type": "tree",
+      "url": "https://api.github.com/repos/ZJLi2013/awesome-kernel-skills/git/trees/4dd8d3a0ec90154d43ccd418c191574a1198d91e"
+    },
+    {
+      "mode": "040000",
+      "path": "skills/kernels/cross-entropy",
+      "sha": "10327f0716e3ffc57e0521210598f7de19ea9d9d",
+      "type": "tree",
+      "url": "https://api.github.com/repos/ZJLi2013/awesome-kernel-skills/git/trees/10327f0716e3ffc57e0521210598f7de19ea9d9d"
+    },
+    {
+      "mode": "100644",
+      "path": "skills/kernels/cross-entropy/SKILL.md",
+      "sha": "8053ad8607cad094d50d935f5b555eb4660f5b8a",
+      "size": 1841,
+      "type": "blob",
+      "url": "https://api.github.com/repos/ZJLi2013/awesome-kernel-skills/git/blobs/8053ad8607cad094d50d935f5b555eb4660f5b8a"
+    },
+    {
+      "mode": "100644",
+      "path": "skills/kernels/cross-entropy/test_cross_entropy.py",
+      "sha": "a1ae3ad75692f6d5a151f0e953918cae73a8aa95",
+      "size": 3387,
+      "type": "blob",
+      "url": "https://api.github.com/repos/ZJLi2013/awesome-kernel-skills/git/blobs/a1ae3ad75692f6d5a151f0e953918cae73a8aa95"
+    },
+    {
+      "mode": "100644",
+      "path": "skills/kernels/cross-entropy/triton_template.py",
+      "sha": "3dbf12b57af5f8801a8963de394de980dfbd1fb5",
+      "size": 1849,
+      "type": "blob",
+      "url": "https://api.github.com/repos/ZJLi2013/awesome-kernel-skills/git/blobs/3dbf12b57af5f8801a8963de394de980dfbd1fb5"
+    },
+    {
+      "mode": "040000",
+      "path": "skills/kernels/flash-attention",
+      "sha": "762aceca0ff9062bb400a5e7f274af09300c6e1d",
+      "type": "tree",
+      "url": "https://api.github.com/repos/ZJLi2013/awesome-kernel-skills/git/trees/762aceca0ff9062bb400a5e7f274af09300c6e1d"
+    },
+    {
+      "mode": "100644",
+      "path": "skills/kernels/flash-attention/SKILL.md",
+      "sha": "a01db739dd72ff21ffbcb9f8b98b6b19ed71bcbd",
+      "size": 2786,
+      "type": "blob",
+      "url": "https://api.github.com/repos/ZJLi2013/awesome-kernel-skills/git/blobs/a01db739dd72ff21ffbcb9f8b98b6b19ed71bcbd"
+    },
+    {
+      "mode": "100644",
+      "path": "skills/kernels/flash-attention/test_flash_attention.py",
+      "sha": "0ebd9513164305a0c9a3b3c35a3ee618530b9249",
+      "size": 3789,
+      "type": "blob",
+      "url": "https://api.github.com/repos/ZJLi2013/awesome-kernel-skills/git/blobs/0ebd9513164305a0c9a3b3c35a3ee618530b9249"
+    },
+    {
+      "mode": "100644",
+      "path": "skills/kernels/flash-attention/triton_template.py",
+      "sha": "cd95b168f0962cf2534f967619b66d75170a288b",
+      "size": 3827,
+      "type": "blob",
+      "url": "https://api.github.com/repos/ZJLi2013/awesome-kernel-skills/git/blobs/cd95b168f0962cf2534f967619b66d75170a288b"
+    },
+    {
+      "mode": "040000",
+      "path": "skills/kernels/fused-moe",
+      "sha": "f91f2b8eaca1519ce1713e4c1957396e41bb13dc",
+      "type": "tree",
+      "url": "https://api.github.com/repos/ZJLi2013/awesome-kernel-skills/git/trees/f91f2b8eaca1519ce1713e4c1957396e41bb13dc"
+    },
+    {
+      "mode": "100644",
+      "path": "skills/kernels/fused-moe/SKILL.md",
+      "sha": "4a40074e5b7ca0116a7d9ba3dad9e2a8cee39f93",
+      "size": 2796,
+      "type": "blob",
+      "url": "https://api.github.com/repos/ZJLi2013/awesome-kernel-skills/git/blobs/4a40074e5b7ca0116a7d9ba3dad9e2a8cee39f93"
+    },
+    {
+      "mode": "100644",
+      "path": "skills/kernels/fused-moe/test_fused_moe.py",
+      "sha": "33e202388fd8c72e509985f7103e9289c5cfb279",
+      "size": 3574,
+      "type": "blob",
+      "url": "https://api.github.com/repos/ZJLi2013/awesome-kernel-skills/git/blobs/33e202388fd8c72e509985f7103e9289c5cfb279"
+    },
+    {
+      "mode": "100644",
+      "path": "skills/kernels/fused-moe/triton_template.py",
+      "sha": "2b55fafa5a2eddc0e747cffebd7cb0239bfec60e",
+      "size": 5884,
+      "type": "blob",
+      "url": "https://api.github.com/repos/ZJLi2013/awesome-kernel-skills/git/blobs/2b55fafa5a2eddc0e747cffebd7cb0239bfec60e"
+    },
+    {
+      "mode": "040000",
+      "path": "skills/kernels/gemm",
+      "sha": "01ac461cc2388aa3e906d6104dd52ff99d45c80e",
+      "type": "tree",
+      "url": "https://api.github.com/repos/ZJLi2013/awesome-kernel-skills/git/trees/01ac461cc2388aa3e906d6104dd52ff99d45c80e"
+    },
+    {
+      "mode": "100644",
+      "path": "skills/kernels/gemm/SKILL.md",
+      "sha": "2646bea2bd9709e0077ed08ad713b6c9554ad6d5",
+      "size": 4446,
+      "type": "blob",
+      "url": "https://api.github.com/repos/ZJLi2013/awesome-kernel-skills/git/blobs/2646bea2bd9709e0077ed08ad713b6c9554ad6d5"
+    },
+    {
+      "mode": "100644",
+      "path": "skills/kernels/gemm/test_gemm.py",
+      "sha": "fb5517c7c785ffb43ed95774cc2cfed0a1e73170",
+      "size": 4614,
+      "type": "blob",
+      "url": "https://api.github.com/repos/ZJLi2013/awesome-kernel-skills/git/blobs/fb5517c7c785ffb43ed95774cc2cfed0a1e73170"
+    },
+    {
+      "mode": "100644",
+      "path": "skills/kernels/gemm/triton_template.py",
+      "sha": "8c894c1eb0ef5dd725833709593ad3b7b2f7362f",
+      "size": 6565,
+      "type": "blob",
+      "url": "https://api.github.com/repos/ZJLi2013/awesome-kernel-skills/git/blobs/8c894c1eb0ef5dd725833709593ad3b7b2f7362f"
+    },
+    {
+      "mode": "040000",
+      "path": "skills/kernels/rmsnorm",
+      "sha": "b52d2b494106663f85a0140bd6db459435f8c8dc",
+      "type": "tree",
+      "url": "https://api.github.com/repos/ZJLi2013/awesome-kernel-skills/git/trees/b52d2b494106663f85a0140bd6db459435f8c8dc"
+    },
+    {
+      "mode": "100644",
+      "path": "skills/kernels/rmsnorm/SKILL.md",
+      "sha": "7e5416082e21dc8cd047d9fe238132c1e5336cef",
+      "size": 2910,
+      "type": "blob",
+      "url": "https://api.github.com/repos/ZJLi2013/awesome-kernel-skills/git/blobs/7e5416082e21dc8cd047d9fe238132c1e5336cef"
+    },
+    {
+      "mode": "100644",
+      "path": "skills/kernels/rmsnorm/test_rmsnorm.py",
+      "sha": "06dbf17f98823ada9c6742b0a98091b29d0aef8a",
+      "size": 3456,
+      "type": "blob",
+      "url": "https://api.github.com/repos/ZJLi2013/awesome-kernel-skills/git/blobs/06dbf17f98823ada9c6742b0a98091b29d0aef8a"
+    },
+    {
+      "mode": "100644",
+      "path": "skills/kernels/rmsnorm/triton_template.py",
+      "sha": "e0d3324f88f1e000d6eca2e9a41e3735e2dc19e0",
+      "size": 1562,
+      "type": "blob",
+      "url": "https://api.github.com/repos/ZJLi2013/awesome-kernel-skills/git/blobs/e0d3324f88f1e000d6eca2e9a41e3735e2dc19e0"
+    },
+    {
+      "mode": "040000",
+      "path": "skills/kernels/rotary-embedding",
+      "sha": "0587e55230508fe102bd051450a4b0400f7eccae",
+      "type": "tree",
+      "url": "https://api.github.com/repos/ZJLi2013/awesome-kernel-skills/git/trees/0587e55230508fe102bd051450a4b0400f7eccae"
+    },
+    {
+      "mode": "100644",
+      "path": "skills/kernels/rotary-embedding/SKILL.md",
+      "sha": "f6d2c68c09ff41905206a091409dbddfdcca6a7b",
+      "size": 1684,
+      "type": "blob",
+      "url": "https://api.github.com/repos/ZJLi2013/awesome-kernel-skills/git/blobs/f6d2c68c09ff41905206a091409dbddfdcca6a7b"
+    },
+    {
+      "mode": "100644",
+      "path": "skills/kernels/rotary-embedding/test_rotary.py",
+      "sha": "efa1cb86d6a6d9105b2a3065d4ef42f34024de20",
+      "size": 3506,
+      "type": "blob",
+      "url": "https://api.github.com/repos/ZJLi2013/awesome-kernel-skills/git/blobs/efa1cb86d6a6d9105b2a3065d4ef42f34024de20"
+    },
+    {
+      "mode": "100644",
+      "path": "skills/kernels/rotary-embedding/triton_template.py",
+      "sha": "82eb6cde8f35130d582763bc974522f9e482f613",
+      "size": 2779,
+      "type": "blob",
+      "url": "https://api.github.com/repos/ZJLi2013/awesome-kernel-skills/git/blobs/82eb6cde8f35130d582763bc974522f9e482f613"
+    },
+    {
+      "mode": "040000",
+      "path": "skills/kernels/softmax",
+      "sha": "345e0c3c3c2926b7174913d072ca0c7831226a3b",
+      "type": "tree",
+      "url": "https://api.github.com/repos/ZJLi2013/awesome-kernel-skills/git/trees/345e0c3c3c2926b7174913d072ca0c7831226a3b"
+    },
+    {
+      "mode": "100644",
+      "path": "skills/kernels/softmax/SKILL.md",
+      "sha": "4e810115cba7ae765be016aaf547d7b2b828b1a7",
+      "size": 2965,
+      "type": "blob",
+      "url": "https://api.github.com/repos/ZJLi2013/awesome-kernel-skills/git/blobs/4e810115cba7ae765be016aaf547d7b2b828b1a7"
+    },
+    {
+      "mode": "100644",
+      "path": "skills/kernels/softmax/test_softmax.py",
+      "sha": "6259e8e034177825563f89429f2fa0187744eeda",
+      "size": 3171,
+      "type": "blob",
+      "url": "https://api.github.com/repos/ZJLi2013/awesome-kernel-skills/git/blobs/6259e8e034177825563f89429f2fa0187744eeda"
+    },
+    {
+      "mode": "100644",
+      "path": "skills/kernels/softmax/triton_template.py",
+      "sha": "60a5d95772b56903507aee47c03568ef7d71531a",
+      "size": 2143,
+      "type": "blob",
+      "url": "https://api.github.com/repos/ZJLi2013/awesome-kernel-skills/git/blobs/60a5d95772b56903507aee47c03568ef7d71531a"
+    },
+    {
+      "mode": "040000",
+      "path": "skills/optimization",
+      "sha": "3367a3cf59c3e67a6fdefea0759d4c6f5336073f",
+      "type": "tree",
+      "url": "https://api.github.com/repos/ZJLi2013/awesome-kernel-skills/git/trees/3367a3cf59c3e67a6fdefea0759d4c6f5336073f"
+    },
+    {
+      "mode": "040000",
+      "path": "skills/optimization/tier1-block-tiling",
+      "sha": "6674a3a78fc59b1ac50b42fd82bce0e4d2128666",
+      "type": "tree",
+      "url": "https://api.github.com/repos/ZJLi2013/awesome-kernel-skills/git/trees/6674a3a78fc59b1ac50b42fd82bce0e4d2128666"
+    },
+    {
+      "mode": "100644",
+      "path": "skills/optimization/tier1-block-tiling/SKILL.md",
+      "sha": "79bf8edc7e5c430824c72ad0811861baa1abcbdb",
+      "size": 4637,
+      "type": "blob",
+      "url": "https://api.github.com/repos/ZJLi2013/awesome-kernel-skills/git/blobs/79bf8edc7e5c430824c72ad0811861baa1abcbdb"
+    },
+    {
+      "mode": "040000",
+      "path": "skills/optimization/tier2-memory-access",
+      "sha": "830271d441e2909d5a2836474a0a4b0c031e6e4f",
+      "type": "tree",
+      "url": "https://api.github.com/repos/ZJLi2013/awesome-kernel-skills/git/trees/830271d441e2909d5a2836474a0a4b0c031e6e4f"
+    },
+    {
+      "mode": "100644",
+      "path": "skills/optimization/tier2-memory-access/SKILL.md",
+      "sha": "10adba49a7cb0882a6ec1442060108c12a41c473",
+      "size": 4131,
+      "type": "blob",
+      "url": "https://api.github.com/repos/ZJLi2013/awesome-kernel-skills/git/blobs/10adba49a7cb0882a6ec1442060108c12a41c473"
+    },
+    {
+      "mode": "040000",
+      "path": "skills/optimization/tier3-compute-fusion",
+      "sha": "34b966b5628a53adffffe969cab1b32fba91fe9b",
+      "type": "tree",
+      "url": "https://api.github.com/repos/ZJLi2013/awesome-kernel-skills/git/trees/34b966b5628a53adffffe969cab1b32fba91fe9b"
+    },
+    {
+      "mode": "100644",
+      "path": "skills/optimization/tier3-compute-fusion/SKILL.md",
+      "sha": "3ec277fb9496b62716662dbc9e8b6d3f94fbdb93",
+      "size": 3421,
+      "type": "blob",
+      "url": "https://api.github.com/repos/ZJLi2013/awesome-kernel-skills/git/blobs/3ec277fb9496b62716662dbc9e8b6d3f94fbdb93"
+    },
+    {
+      "mode": "040000",
+      "path": "skills/optimization/tier4-advanced-scheduling",
+      "sha": "2afc3ea507e185163ad359445daee7e884a09475",
+      "type": "tree",
+      "url": "https://api.github.com/repos/ZJLi2013/awesome-kernel-skills/git/trees/2afc3ea507e185163ad359445daee7e884a09475"
+    },
+    {
+      "mode": "100644",
+      "path": "skills/optimization/tier4-advanced-scheduling/SKILL.md",
+      "sha": "7bcc5430ce49d2b5d6b127681507b2db91529dc1",
+      "size": 3781,
+      "type": "blob",
+      "url": "https://api.github.com/repos/ZJLi2013/awesome-kernel-skills/git/blobs/7bcc5430ce49d2b5d6b127681507b2db91529dc1"
+    },
+    {
+      "mode": "040000",
+      "path": "skills/optimization/tier5-arch-amd-rocm",
+      "sha": "a94f1c4f4c128c0d1f71789c4b27664fbc632025",
+      "type": "tree",
+      "url": "https://api.github.com/repos/ZJLi2013/awesome-kernel-skills/git/trees/a94f1c4f4c128c0d1f71789c4b27664fbc632025"
+    },
+    {
+      "mode": "100644",
+      "path": "skills/optimization/tier5-arch-amd-rocm/SKILL.md",
+      "sha": "c87921d08301d8a02fbf9d6a0c99b26eecd3a602",
+      "size": 3276,
+      "type": "blob",
+      "url": "https://api.github.com/repos/ZJLi2013/awesome-kernel-skills/git/blobs/c87921d08301d8a02fbf9d6a0c99b26eecd3a602"
+    },
+    {
+      "mode": "040000",
+      "path": "skills/optimization/tier5-arch-nvidia",
+      "sha": "61c067da7ea6c86fe61e4479b584edfb994ce7b3",
+      "type": "tree",
+      "url": "https://api.github.com/repos/ZJLi2013/awesome-kernel-skills/git/trees/61c067da7ea6c86fe61e4479b584edfb994ce7b3"
+    },
+    {
+      "mode": "100644",
+      "path": "skills/optimization/tier5-arch-nvidia/SKILL.md",
+      "sha": "a4084ddbd45c404f54a2c5a2f47d73f5818e3ae9",
+      "size": 3487,
+      "type": "blob",
+      "url": "https://api.github.com/repos/ZJLi2013/awesome-kernel-skills/git/blobs/a4084ddbd45c404f54a2c5a2f47d73f5818e3ae9"
+    },
+    {
+      "mode": "040000",
+      "path": "skills/system",
+      "sha": "09cf8b58356fb66a132d5bba1b71fe3d42eed0a8",
+      "type": "tree",
+      "url": "https://api.github.com/repos/ZJLi2013/awesome-kernel-skills/git/trees/09cf8b58356fb66a132d5bba1b71fe3d42eed0a8"
+    },
+    {
+      "mode": "040000",
+      "path": "skills/system/benchmark",
+      "sha": "890a3a357eeab672bf2552624b79612613124674",
+      "type": "tree",
+      "url": "https://api.github.com/repos/ZJLi2013/awesome-kernel-skills/git/trees/890a3a357eeab672bf2552624b79612613124674"
+    },
+    {
+      "mode": "100644",
+      "path": "skills/system/benchmark/SKILL.md",
+      "sha": "aa8ce46ea78f1a2f633a99119e4ba73e1e0bee0f",
+      "size": 2266,
+      "type": "blob",
+      "url": "https://api.github.com/repos/ZJLi2013/awesome-kernel-skills/git/blobs/aa8ce46ea78f1a2f633a99119e4ba73e1e0bee0f"
+    },
+    {
+      "mode": "040000",
+      "path": "skills/system/bottleneck-diagnosis",
+      "sha": "bc843f767556a48118cbbfde0103ea1dca1bc0b3",
+      "type": "tree",
+      "url": "https://api.github.com/repos/ZJLi2013/awesome-kernel-skills/git/trees/bc843f767556a48118cbbfde0103ea1dca1bc0b3"
+    },
+    {
+      "mode": "100644",
+      "path": "skills/system/bottleneck-diagnosis/SKILL.md",
+      "sha": "eccf355bc8d747c85af1c5f6047cb3d5b8321492",
+      "size": 3993,
+      "type": "blob",
+      "url": "https://api.github.com/repos/ZJLi2013/awesome-kernel-skills/git/blobs/eccf355bc8d747c85af1c5f6047cb3d5b8321492"
+    },
+    {
+      "mode": "040000",
+      "path": "skills/system/optimize-loop",
+      "sha": "78a119830798a15796c53b9e793c9c5b6cd6c790",
+      "type": "tree",
+      "url": "https://api.github.com/repos/ZJLi2013/awesome-kernel-skills/git/trees/78a119830798a15796c53b9e793c9c5b6cd6c790"
+    },
+    {
+      "mode": "100644",
+      "path": "skills/system/optimize-loop/SKILL.md",
+      "sha": "f59c8909b4e4292f1f65fb9eb7f49d6921bd9175",
+      "size": 11605,
+      "type": "blob",
+      "url": "https://api.github.com/repos/ZJLi2013/awesome-kernel-skills/git/blobs/f59c8909b4e4292f1f65fb9eb7f49d6921bd9175"
+    },
+    {
+      "mode": "040000",
+      "path": "skills/system/profiling",
+      "sha": "4d46f17f3fb06b7d109509cd66e7572a88ac2851",
+      "type": "tree",
+      "url": "https://api.github.com/repos/ZJLi2013/awesome-kernel-skills/git/trees/4d46f17f3fb06b7d109509cd66e7572a88ac2851"
+    },
+    {
+      "mode": "100644",
+      "path": "skills/system/profiling/SKILL.md",
+      "sha": "358d88f7cabff06240a9be5daff1c824b5450e8d",
+      "size": 2783,
+      "type": "blob",
+      "url": "https://api.github.com/repos/ZJLi2013/awesome-kernel-skills/git/blobs/358d88f7cabff06240a9be5daff1c824b5450e8d"
+    },
+    {
+      "mode": "040000",
+      "path": "skills/system/verification",
+      "sha": "3cb0e160028cd0f09492776462905d4e71f97351",
+      "type": "tree",
+      "url": "https://api.github.com/repos/ZJLi2013/awesome-kernel-skills/git/trees/3cb0e160028cd0f09492776462905d4e71f97351"
+    },
+    {
+      "mode": "100644",
+      "path": "skills/system/verification/SKILL.md",
+      "sha": "313029567d3bb1b1173616b45ec077d6a4843697",
+      "size": 2806,
+      "type": "blob",
+      "url": "https://api.github.com/repos/ZJLi2013/awesome-kernel-skills/git/blobs/313029567d3bb1b1173616b45ec077d6a4843697"
+    }
+  ]
+}

@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<script>try{const t=localStorage.getItem('kernel-skills-theme');document.documentElement.dataset.theme=t==='light'||t==='dark'?t:(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light')}catch{document.documentElement.dataset.theme=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}</script>
+<meta name="description" content="高级调度 · Awesome Kernel Skills：GPU kernel 优化学习路径与 18 篇笔记。">
+<meta name="author" content="ZJLi2013 / awesome-kernel-skills">
+<title>高级调度 · Kernel Skills · 文章</title>
+<link rel="canonical" href="https://zx3xyy.github.io/articles/kernel-skills/tier4-advanced-scheduling.html">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230d1117'/%3E%3Cpath d='M9 7v18m2-9L23 7M11 16l12 9' stroke='%2358a6ff' stroke-width='3' fill='none'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="reader.css">
+<script src="theme.js" defer></script>
+</head>
+<body>
+<a class="skip" href="#main">跳到正文</a>
+<header class="topbar" lang="zh-CN"><a href="../">← 文章</a><a class="brand" href="index.html">Kernel Skills</a><a class="upstream" href="https://github.com/ZJLi2013/awesome-kernel-skills">原仓库 ↗</a><button class="theme-toggle" type="button" aria-label="切换深色模式" aria-pressed="false">深色</button></header>
+<div class="layout">
+<aside class="sidebar" lang="zh-CN"><p class="sidebar-label">学习目录 <span>18 篇</span></p><nav aria-label="学习目录"><a class="path-link "  href="index.html"><span>00</span> 学习路径</a><div class="nav-group"><p>优化方法</p><ol><li><a  href="tier1-block-tiling.html"><span>01</span>分块与线程配置</a></li><li><a  href="tier2-memory-access.html"><span>02</span>内存访问与层级</a></li><li><a  href="tier3-compute-fusion.html"><span>03</span>计算优化与融合</a></li><li><a class="current" aria-current="page" href="tier4-advanced-scheduling.html"><span>04</span>高级调度</a></li><li><a  href="tier5-arch-nvidia.html"><span>05</span>NVIDIA 架构</a></li><li><a  href="tier5-arch-amd-rocm.html"><span>06</span>AMD / ROCm 架构</a></li></ol></div><div class="nav-group"><p>算子实践</p><ol><li><a  href="gemm.html"><span>07</span>GEMM · 矩阵乘</a></li><li><a  href="flash-attention.html"><span>08</span>FlashAttention</a></li><li><a  href="fused-moe.html"><span>09</span>Fused MoE</a></li><li><a  href="softmax.html"><span>10</span>Softmax</a></li><li><a  href="rmsnorm.html"><span>11</span>RMSNorm</a></li><li><a  href="cross-entropy.html"><span>12</span>Cross-Entropy</a></li><li><a  href="rotary-embedding.html"><span>13</span>RoPE · 旋转位置编码</a></li></ol></div><div class="nav-group"><p>优化流程</p><ol><li><a  href="optimize-loop.html"><span>14</span>优化循环</a></li><li><a  href="profiling.html"><span>15</span>性能分析</a></li><li><a  href="bottleneck-diagnosis.html"><span>16</span>瓶颈诊断</a></li><li><a  href="verification.html"><span>17</span>正确性验证</a></li><li><a  href="benchmark.html"><span>18</span>基准测试</a></li></ol></div></nav></aside>
+<main id="main" tabindex="-1">
+<details class="mobile-nav" lang="zh-CN"><summary>学习目录 · 高级调度</summary><nav aria-label="移动端学习目录"><a class="path-link "  href="index.html"><span>00</span> 学习路径</a><div class="nav-group"><p>优化方法</p><ol><li><a  href="tier1-block-tiling.html"><span>01</span>分块与线程配置</a></li><li><a  href="tier2-memory-access.html"><span>02</span>内存访问与层级</a></li><li><a  href="tier3-compute-fusion.html"><span>03</span>计算优化与融合</a></li><li><a class="current" aria-current="page" href="tier4-advanced-scheduling.html"><span>04</span>高级调度</a></li><li><a  href="tier5-arch-nvidia.html"><span>05</span>NVIDIA 架构</a></li><li><a  href="tier5-arch-amd-rocm.html"><span>06</span>AMD / ROCm 架构</a></li></ol></div><div class="nav-group"><p>算子实践</p><ol><li><a  href="gemm.html"><span>07</span>GEMM · 矩阵乘</a></li><li><a  href="flash-attention.html"><span>08</span>FlashAttention</a></li><li><a  href="fused-moe.html"><span>09</span>Fused MoE</a></li><li><a  href="softmax.html"><span>10</span>Softmax</a></li><li><a  href="rmsnorm.html"><span>11</span>RMSNorm</a></li><li><a  href="cross-entropy.html"><span>12</span>Cross-Entropy</a></li><li><a  href="rotary-embedding.html"><span>13</span>RoPE · 旋转位置编码</a></li></ol></div><div class="nav-group"><p>优化流程</p><ol><li><a  href="optimize-loop.html"><span>14</span>优化循环</a></li><li><a  href="profiling.html"><span>15</span>性能分析</a></li><li><a  href="bottleneck-diagnosis.html"><span>16</span>瓶颈诊断</a></li><li><a  href="verification.html"><span>17</span>正确性验证</a></li><li><a  href="benchmark.html"><span>18</span>基准测试</a></li></ol></div></nav></details>
+<div class="page-meta" lang="zh-CN"><span>优化方法</span><span>04 / 18</span></div>
+<div class="source-note" lang="zh-CN">原文：<a href="https://github.com/ZJLi2013/awesome-kernel-skills/blob/aba7662286ee19df68ce94cb7d363554f7157f0a/skills/optimization/tier4-advanced-scheduling/SKILL.md">ZJLi2013 / skills/optimization/tier4-advanced-scheduling/SKILL.md</a><span>原文内容保留 · HTML 阅读版</span></div>
+<details class="outline"><summary>本页目录 <span>8 个章节</span></summary><ol><li class="depth-2"><a href="#split-k-with-reduction">Split-K with reduction</a></li><li class="depth-2"><a href="#persistent-kernels">Persistent kernels</a></li><li class="depth-2"><a href="#stream-k-stream-k">Stream-K / Stream-K++</a></li><li class="depth-2"><a href="#warp-specialization-hopper-class">Warp specialization (Hopper-class)</a></li><li class="depth-2"><a href="#multi-gpu-compute-communication-fusion">Multi-GPU: compute + communication fusion</a></li><li class="depth-2"><a href="#picking-a-strategy-quick-matrix">Picking a strategy (quick matrix)</a></li><li class="depth-2"><a href="#interaction-with-autokernel-tier-6">Interaction with AutoKernel Tier 6</a></li><li class="depth-2"><a href="#agent-instructions">Agent Instructions</a></li></ol></details>
+<article class="prose" aria-label="Tier 4: Advanced Scheduling"><h1 id="tier-4-advanced-scheduling">Tier 4: Advanced Scheduling</h1>
+<p><strong>AutoKernel Tier 4</strong> addresses <strong>parallelism structure</strong> beyond per-block tiling: how work maps to SMs over time and across chips.</p>
+<h2 id="split-k-with-reduction">Split-K with reduction</h2>
+<ul>
+<li><strong>Idea</strong>: Multiple blocks partial-sum along K; <strong>atomic</strong> or <strong>second-phase reduction</strong> to finalize C.</li>
+<li><strong>Use when</strong>: Increasing <code>BLOCK_K</code> alone overspills SMEM/regs or hurts occupancy, but more <strong>K-parallelism</strong> improves utilization.</li>
+<li><strong>Cost</strong>: Extra <strong>HBM traffic</strong> for partials unless reduction is fused; watch <strong>atomics</strong> on small tiles.</li>
+</ul>
+<h2 id="persistent-kernels">Persistent kernels</h2>
+<ul>
+<li><strong>Idea</strong>: Launch <strong>~#SMs</strong> blocks (or similar) that <strong>loop internally</strong> over many output tiles, reusing registers/SMEM across tiles.</li>
+<li><strong>Benefits</strong>: Amortizes <strong>launch latency</strong>, improves <strong>L2 locality</strong> with controlled traversal order.</li>
+<li><strong>Risks</strong>: Complex <strong>grid-stride</strong> indexing; harder debugging. Pair with <strong>ordered tile scheduling</strong> for cache affinity.</li>
+</ul>
+<h2 id="stream-k-stream-k">Stream-K / Stream-K++</h2>
+<ul>
+<li><strong>Problem</strong>: Classic 2D tiling leaves <strong>tail imbalance</strong> (last waves idle).</li>
+<li><strong>Idea</strong>: <strong>Stream</strong> fractional K contributions across blocks so SMs stay busy; <strong>Stream-K++</strong> refines reduction and scheduling for fewer barriers.</li>
+<li><strong>When</strong>: Large rectangular GEMMs on <strong>high SM-count</strong> GPUs where occupancy is uneven.</li>
+</ul>
+<h2 id="warp-specialization-hopper-class">Warp specialization (Hopper-class)</h2>
+<ul>
+<li><strong>Pattern</strong>: <strong>Producer warps</strong> (TMA / async copy / transport) vs <strong>consumer warps</strong> (WGMMA / math).</li>
+<li><strong>Goal</strong>: Overlap <strong>bulk memory movement</strong> with <strong>tensor-core compute</strong> without starving either side.</li>
+<li><strong>When</strong>: Kernels already use <strong>TMA/WGMMA</strong> pipelines; not a first step for simple Triton dot kernels.</li>
+</ul>
+<h2 id="multi-gpu-compute-communication-fusion">Multi-GPU: compute + communication fusion</h2>
+<ul>
+<li><strong>Overlap</strong>: <strong>NCCL/RCCL</strong> collectives scheduled alongside <strong>independent compute</strong> on separate streams (or fused schedules in framework runtimes).</li>
+<li><strong>Fusion patterns</strong>: <strong>All-reduce + gradient GEMM</strong> pipelining, <strong>tensor-parallel</strong> shards with <strong>next-layer prefetch</strong>.</li>
+<li><strong>Watch</strong>: <strong>Bubble</strong> minimization dominates; profile both <strong>network</strong> and <strong>GPU</strong> timelines.</li>
+</ul>
+<h2 id="picking-a-strategy-quick-matrix">Picking a strategy (quick matrix)</h2>
+<div class="table-scroll" tabindex="0" role="region" aria-label="表格，可横向滚动"><table>
+<thead>
+<tr>
+<th>Symptom</th>
+<th>Try first</th>
+<th>Watch for</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>K too large for one tile’s SMEM</td>
+<td><strong>Split-K</strong></td>
+<td>Partial traffic + atomics</td>
+</tr>
+<tr>
+<td>Huge grid, tiny per-kernel time</td>
+<td><strong>Persistent</strong></td>
+<td>Correctness of tile iterator</td>
+</tr>
+<tr>
+<td>Classic 2D tail idle on big GPU</td>
+<td><strong>Stream-K</strong></td>
+<td>Reduction complexity</td>
+</tr>
+<tr>
+<td>Hopper + TMA in play</td>
+<td><strong>Warp specialization</strong></td>
+<td>Producer/consumer deadlock</td>
+</tr>
+<tr>
+<td>TP/PP pipeline bubbles</td>
+<td><strong>Comm/compute overlap</strong></td>
+<td>Ordering / race bugs</td>
+</tr>
+</tbody></table></div>
+<h2 id="interaction-with-autokernel-tier-6">Interaction with AutoKernel Tier 6</h2>
+<ul>
+<li>Some playbooks treat <strong>tooling/automation</strong> (search, DSL lowering) as a final tier; scheduling choices here should still be <strong>expressed as reproducible config knobs</strong> for autotuners.</li>
+</ul>
+<h2 id="agent-instructions">Agent Instructions</h2>
+<ol>
+<li>Only adopt Tier 4 after <strong>Tier 1–3</strong> are sane; confirm imbalance or launch overhead with a <strong>timeline profiler</strong> (NSYS/rocprof traces).</li>
+<li>For <strong>tail-heavy</strong> matmuls, prototype <strong>Stream-K</strong> or <strong>persistent</strong> variants against a <strong>Split-K</strong> baseline; compare <strong>effective TFLOPS</strong> and <strong>code complexity</strong>.</li>
+<li>On <strong>Hopper</strong>, if using advanced APIs, evaluate <strong>warp-specialized</strong> pipelines vs monolithic blocks using profiling counters for <strong>TMA vs math overlap</strong>.</li>
+<li>For <strong>multi-GPU</strong>, map <strong>critical path</strong> (comm vs compute) and prefer <strong>fused/overlapped</strong> schedules where safe.</li>
+<li>Align documentation and tuning notes with <strong>AutoKernel Tier 5</strong> (vendor-specific caps) before shipping production configs.</li>
+</ol>
+</article>
+<details class="metadata"><summary>Skill 元信息</summary><pre><code>name: gpu-opt-tier4-advanced-scheduling
+description: &gt;-
+  Applies Split-K, persistent kernels, Stream-K/Stream-K++, warp specialization, and multi-GPU
+  fused schedules. Use when simple tiling leaves tails, load imbalance, or excessive kernel
+  launch overhead on large GPUs.</code></pre></details>
+<nav class="pager" aria-label="相邻篇目"><a href="tier3-compute-fusion.html"><span>← 上一篇</span><strong>计算优化与融合</strong></a><a class="next" href="tier5-arch-nvidia.html"><span>下一篇 →</span><strong>NVIDIA 架构</strong></a></nav>
+<footer class="page-footer" lang="zh-CN">来源：<a href="https://github.com/ZJLi2013/awesome-kernel-skills">Awesome Kernel Skills</a> · <a href="https://github.com/ZJLi2013/awesome-kernel-skills/commit/aba7662286ee19df68ce94cb7d363554f7157f0a">版本 aba7662</a> · <a href="../">文章首页</a></footer>
+</main>
+</div>
+</body>
+</html>

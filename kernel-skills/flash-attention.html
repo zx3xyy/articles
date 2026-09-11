@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<script>try{const t=localStorage.getItem('kernel-skills-theme');document.documentElement.dataset.theme=t==='light'||t==='dark'?t:(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light')}catch{document.documentElement.dataset.theme=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}</script>
+<meta name="description" content="FlashAttention · Awesome Kernel Skills：GPU kernel 优化学习路径与 18 篇笔记。">
+<meta name="author" content="ZJLi2013 / awesome-kernel-skills">
+<title>FlashAttention · Kernel Skills · 文章</title>
+<link rel="canonical" href="https://zx3xyy.github.io/articles/kernel-skills/flash-attention.html">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230d1117'/%3E%3Cpath d='M9 7v18m2-9L23 7M11 16l12 9' stroke='%2358a6ff' stroke-width='3' fill='none'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="reader.css">
+<script src="theme.js" defer></script>
+</head>
+<body>
+<a class="skip" href="#main">跳到正文</a>
+<header class="topbar" lang="zh-CN"><a href="../">← 文章</a><a class="brand" href="index.html">Kernel Skills</a><a class="upstream" href="https://github.com/ZJLi2013/awesome-kernel-skills">原仓库 ↗</a><button class="theme-toggle" type="button" aria-label="切换深色模式" aria-pressed="false">深色</button></header>
+<div class="layout">
+<aside class="sidebar" lang="zh-CN"><p class="sidebar-label">学习目录 <span>18 篇</span></p><nav aria-label="学习目录"><a class="path-link "  href="index.html"><span>00</span> 学习路径</a><div class="nav-group"><p>优化方法</p><ol><li><a  href="tier1-block-tiling.html"><span>01</span>分块与线程配置</a></li><li><a  href="tier2-memory-access.html"><span>02</span>内存访问与层级</a></li><li><a  href="tier3-compute-fusion.html"><span>03</span>计算优化与融合</a></li><li><a  href="tier4-advanced-scheduling.html"><span>04</span>高级调度</a></li><li><a  href="tier5-arch-nvidia.html"><span>05</span>NVIDIA 架构</a></li><li><a  href="tier5-arch-amd-rocm.html"><span>06</span>AMD / ROCm 架构</a></li></ol></div><div class="nav-group"><p>算子实践</p><ol><li><a  href="gemm.html"><span>07</span>GEMM · 矩阵乘</a></li><li><a class="current" aria-current="page" href="flash-attention.html"><span>08</span>FlashAttention</a></li><li><a  href="fused-moe.html"><span>09</span>Fused MoE</a></li><li><a  href="softmax.html"><span>10</span>Softmax</a></li><li><a  href="rmsnorm.html"><span>11</span>RMSNorm</a></li><li><a  href="cross-entropy.html"><span>12</span>Cross-Entropy</a></li><li><a  href="rotary-embedding.html"><span>13</span>RoPE · 旋转位置编码</a></li></ol></div><div class="nav-group"><p>优化流程</p><ol><li><a  href="optimize-loop.html"><span>14</span>优化循环</a></li><li><a  href="profiling.html"><span>15</span>性能分析</a></li><li><a  href="bottleneck-diagnosis.html"><span>16</span>瓶颈诊断</a></li><li><a  href="verification.html"><span>17</span>正确性验证</a></li><li><a  href="benchmark.html"><span>18</span>基准测试</a></li></ol></div></nav></aside>
+<main id="main" tabindex="-1">
+<details class="mobile-nav" lang="zh-CN"><summary>学习目录 · FlashAttention</summary><nav aria-label="移动端学习目录"><a class="path-link "  href="index.html"><span>00</span> 学习路径</a><div class="nav-group"><p>优化方法</p><ol><li><a  href="tier1-block-tiling.html"><span>01</span>分块与线程配置</a></li><li><a  href="tier2-memory-access.html"><span>02</span>内存访问与层级</a></li><li><a  href="tier3-compute-fusion.html"><span>03</span>计算优化与融合</a></li><li><a  href="tier4-advanced-scheduling.html"><span>04</span>高级调度</a></li><li><a  href="tier5-arch-nvidia.html"><span>05</span>NVIDIA 架构</a></li><li><a  href="tier5-arch-amd-rocm.html"><span>06</span>AMD / ROCm 架构</a></li></ol></div><div class="nav-group"><p>算子实践</p><ol><li><a  href="gemm.html"><span>07</span>GEMM · 矩阵乘</a></li><li><a class="current" aria-current="page" href="flash-attention.html"><span>08</span>FlashAttention</a></li><li><a  href="fused-moe.html"><span>09</span>Fused MoE</a></li><li><a  href="softmax.html"><span>10</span>Softmax</a></li><li><a  href="rmsnorm.html"><span>11</span>RMSNorm</a></li><li><a  href="cross-entropy.html"><span>12</span>Cross-Entropy</a></li><li><a  href="rotary-embedding.html"><span>13</span>RoPE · 旋转位置编码</a></li></ol></div><div class="nav-group"><p>优化流程</p><ol><li><a  href="optimize-loop.html"><span>14</span>优化循环</a></li><li><a  href="profiling.html"><span>15</span>性能分析</a></li><li><a  href="bottleneck-diagnosis.html"><span>16</span>瓶颈诊断</a></li><li><a  href="verification.html"><span>17</span>正确性验证</a></li><li><a  href="benchmark.html"><span>18</span>基准测试</a></li></ol></div></nav></details>
+<div class="page-meta" lang="zh-CN"><span>算子实践</span><span>08 / 18</span></div>
+<div class="source-note" lang="zh-CN">原文：<a href="https://github.com/ZJLi2013/awesome-kernel-skills/blob/aba7662286ee19df68ce94cb7d363554f7157f0a/skills/kernels/flash-attention/SKILL.md">ZJLi2013 / skills/kernels/flash-attention/SKILL.md</a><span>原文内容保留 · HTML 阅读版</span></div>
+<details class="outline"><summary>本页目录 <span>9 个章节</span></summary><ol><li class="depth-2"><a href="#overview">Overview</a></li><li class="depth-2"><a href="#core-technique">Core Technique</a></li><li class="depth-3"><a href="#online-softmax-milakov-gimelshein">Online Softmax (Milakov &amp; Gimelshein)</a></li><li class="depth-3"><a href="#tiled-computation">Tiled Computation</a></li><li class="depth-3"><a href="#causal-masking">Causal Masking</a></li><li class="depth-2"><a href="#autotune-notes">Autotune Notes</a></li><li class="depth-2"><a href="#verification">Verification</a></li><li class="depth-2"><a href="#common-pitfalls">Common Pitfalls</a></li><li class="depth-2"><a href="#references">References</a></li></ol></details>
+<article class="prose" aria-label="FlashAttention Kernel Optimization"><h1 id="flashattention-kernel-optimization">FlashAttention Kernel Optimization</h1>
+<h2 id="overview">Overview</h2>
+<p>FlashAttention fuses the entire attention computation (Q@K^T -&gt; softmax -&gt; @V) into a single
+kernel, avoiding materialization of the full N x N attention matrix in HBM.</p>
+<p>For typical LLM shapes, attention is <strong>IO-bound</strong> (dominated by HBM reads of Q/K/V).
+The key metrics are <strong>TFLOPS</strong> and <strong>memory savings</strong> (O(N) instead of O(N^2)).</p>
+<h2 id="core-technique">Core Technique</h2>
+<h3 id="online-softmax-milakov-gimelshein">Online Softmax (Milakov &amp; Gimelshein)</h3>
+<p>The key insight: compute softmax incrementally as K/V tiles stream through:</p>
+<ol>
+<li>Maintain running <code>m_i</code> (row max) and <code>l_i</code> (exp sum) per query row</li>
+<li>For each K tile: compute <code>qk = Q @ K^T</code>, update max, rescale accumulator</li>
+<li>After all K tiles: divide accumulator by final <code>l_i</code></li>
+</ol>
+<p>This avoids two passes over the attention matrix.</p>
+<h3 id="tiled-computation">Tiled Computation</h3>
+<ul>
+<li>Outer loop: Q tiles of <code>[BLOCK_M, D]</code></li>
+<li>Inner loop: K/V tiles of <code>[BLOCK_N, D]</code></li>
+<li>Two GEMMs per inner iteration: <code>QK = Q @ K^T</code> and <code>acc += softmax(QK) @ V</code></li>
+<li>Both GEMMs use tensor cores (WMMA/WGMMA/MFMA)</li>
+</ul>
+<h3 id="causal-masking">Causal Masking</h3>
+<p>For causal (autoregressive) attention:</p>
+<ul>
+<li>Early termination: skip K/V tiles where all positions are masked</li>
+<li><code>kv_end = min(N, (pid_m + 1) * BLOCK_M)</code> for causal</li>
+<li>Apply <code>where(causal_mask, qk, -inf)</code> for partial tiles</li>
+</ul>
+<h2 id="autotune-notes">Autotune Notes</h2>
+<div class="table-scroll" tabindex="0" role="region" aria-label="表格，可横向滚动"><table>
+<thead>
+<tr>
+<th>Parameter</th>
+<th>Typical Values</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>BLOCK_M</td>
+<td>64, 128</td>
+</tr>
+<tr>
+<td>BLOCK_N</td>
+<td>32, 64</td>
+</tr>
+<tr>
+<td>D (head dim)</td>
+<td>64, 128 (constexpr)</td>
+</tr>
+<tr>
+<td>num_warps</td>
+<td>4 (D&lt;=64), 8 (D&gt;64)</td>
+</tr>
+<tr>
+<td>num_stages</td>
+<td>2</td>
+</tr>
+</tbody></table></div>
+<p>AMD: same structure but <code>num_warps</code> maps to wavefronts of 64.</p>
+<h2 id="verification">Verification</h2>
+<pre><code class="language-bash">python skills/kernels/flash-attention/test_flash_attention.py
+</code></pre>
+<ul>
+<li>Correctness: compare vs <code>torch.nn.functional.scaled_dot_product_attention</code></li>
+<li>Performance: TFLOPS = <code>4 * B * H * N * N * D / latency / 1e12</code> (2 GEMMs, fwd only)</li>
+</ul>
+<h2 id="common-pitfalls">Common Pitfalls</h2>
+<ol>
+<li><strong>Missing online softmax rescaling</strong>: forgetting <code>acc *= alpha[:, None]</code> when max updates</li>
+<li><strong>Wrong causal mask direction</strong>: <code>offs_m &gt;= offs_n</code> not <code>offs_m &gt; offs_n</code></li>
+<li><strong>D not constexpr</strong>: head dimension must be known at compile time for tensor core tiling</li>
+<li><strong><code>tl.trans</code> on AMD</strong>: works but may need explicit <code>.contiguous()</code> on input K</li>
+</ol>
+<h2 id="references">References</h2>
+<ul>
+<li><a href="https://arxiv.org/abs/2205.14135">FlashAttention: Fast and Memory-Efficient Attention (Dao et al., 2022)</a></li>
+<li><a href="https://arxiv.org/abs/2307.08691">FlashAttention-2 (Dao, 2023)</a></li>
+<li><a href="https://triton-lang.org/main/getting-started/tutorials/06-fused-attention.html">Triton Fused Attention Tutorial</a></li>
+</ul>
+</article>
+<details class="metadata"><summary>Skill 元信息</summary><pre><code>name: flash-attention-kernel
+description: &gt;-
+  Optimize FlashAttention-style fused attention kernels in Triton for NVIDIA and AMD GPUs.
+  Covers online softmax, tiled QK/AV GEMM, causal masking, and memory-efficient attention.
+  Use when writing or optimizing self-attention, cross-attention, or any QKV attention kernel.</code></pre></details>
+<nav class="pager" aria-label="相邻篇目"><a href="gemm.html"><span>← 上一篇</span><strong>GEMM · 矩阵乘</strong></a><a class="next" href="fused-moe.html"><span>下一篇 →</span><strong>Fused MoE</strong></a></nav>
+<footer class="page-footer" lang="zh-CN">来源：<a href="https://github.com/ZJLi2013/awesome-kernel-skills">Awesome Kernel Skills</a> · <a href="https://github.com/ZJLi2013/awesome-kernel-skills/commit/aba7662286ee19df68ce94cb7d363554f7157f0a">版本 aba7662</a> · <a href="../">文章首页</a></footer>
+</main>
+</div>
+</body>
+</html>

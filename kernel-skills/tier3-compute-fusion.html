@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<script>try{const t=localStorage.getItem('kernel-skills-theme');document.documentElement.dataset.theme=t==='light'||t==='dark'?t:(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light')}catch{document.documentElement.dataset.theme=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}</script>
+<meta name="description" content="计算优化与融合 · Awesome Kernel Skills：GPU kernel 优化学习路径与 18 篇笔记。">
+<meta name="author" content="ZJLi2013 / awesome-kernel-skills">
+<title>计算优化与融合 · Kernel Skills · 文章</title>
+<link rel="canonical" href="https://zx3xyy.github.io/articles/kernel-skills/tier3-compute-fusion.html">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230d1117'/%3E%3Cpath d='M9 7v18m2-9L23 7M11 16l12 9' stroke='%2358a6ff' stroke-width='3' fill='none'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="reader.css">
+<script src="theme.js" defer></script>
+</head>
+<body>
+<a class="skip" href="#main">跳到正文</a>
+<header class="topbar" lang="zh-CN"><a href="../">← 文章</a><a class="brand" href="index.html">Kernel Skills</a><a class="upstream" href="https://github.com/ZJLi2013/awesome-kernel-skills">原仓库 ↗</a><button class="theme-toggle" type="button" aria-label="切换深色模式" aria-pressed="false">深色</button></header>
+<div class="layout">
+<aside class="sidebar" lang="zh-CN"><p class="sidebar-label">学习目录 <span>18 篇</span></p><nav aria-label="学习目录"><a class="path-link "  href="index.html"><span>00</span> 学习路径</a><div class="nav-group"><p>优化方法</p><ol><li><a  href="tier1-block-tiling.html"><span>01</span>分块与线程配置</a></li><li><a  href="tier2-memory-access.html"><span>02</span>内存访问与层级</a></li><li><a class="current" aria-current="page" href="tier3-compute-fusion.html"><span>03</span>计算优化与融合</a></li><li><a  href="tier4-advanced-scheduling.html"><span>04</span>高级调度</a></li><li><a  href="tier5-arch-nvidia.html"><span>05</span>NVIDIA 架构</a></li><li><a  href="tier5-arch-amd-rocm.html"><span>06</span>AMD / ROCm 架构</a></li></ol></div><div class="nav-group"><p>算子实践</p><ol><li><a  href="gemm.html"><span>07</span>GEMM · 矩阵乘</a></li><li><a  href="flash-attention.html"><span>08</span>FlashAttention</a></li><li><a  href="fused-moe.html"><span>09</span>Fused MoE</a></li><li><a  href="softmax.html"><span>10</span>Softmax</a></li><li><a  href="rmsnorm.html"><span>11</span>RMSNorm</a></li><li><a  href="cross-entropy.html"><span>12</span>Cross-Entropy</a></li><li><a  href="rotary-embedding.html"><span>13</span>RoPE · 旋转位置编码</a></li></ol></div><div class="nav-group"><p>优化流程</p><ol><li><a  href="optimize-loop.html"><span>14</span>优化循环</a></li><li><a  href="profiling.html"><span>15</span>性能分析</a></li><li><a  href="bottleneck-diagnosis.html"><span>16</span>瓶颈诊断</a></li><li><a  href="verification.html"><span>17</span>正确性验证</a></li><li><a  href="benchmark.html"><span>18</span>基准测试</a></li></ol></div></nav></aside>
+<main id="main" tabindex="-1">
+<details class="mobile-nav" lang="zh-CN"><summary>学习目录 · 计算优化与融合</summary><nav aria-label="移动端学习目录"><a class="path-link "  href="index.html"><span>00</span> 学习路径</a><div class="nav-group"><p>优化方法</p><ol><li><a  href="tier1-block-tiling.html"><span>01</span>分块与线程配置</a></li><li><a  href="tier2-memory-access.html"><span>02</span>内存访问与层级</a></li><li><a class="current" aria-current="page" href="tier3-compute-fusion.html"><span>03</span>计算优化与融合</a></li><li><a  href="tier4-advanced-scheduling.html"><span>04</span>高级调度</a></li><li><a  href="tier5-arch-nvidia.html"><span>05</span>NVIDIA 架构</a></li><li><a  href="tier5-arch-amd-rocm.html"><span>06</span>AMD / ROCm 架构</a></li></ol></div><div class="nav-group"><p>算子实践</p><ol><li><a  href="gemm.html"><span>07</span>GEMM · 矩阵乘</a></li><li><a  href="flash-attention.html"><span>08</span>FlashAttention</a></li><li><a  href="fused-moe.html"><span>09</span>Fused MoE</a></li><li><a  href="softmax.html"><span>10</span>Softmax</a></li><li><a  href="rmsnorm.html"><span>11</span>RMSNorm</a></li><li><a  href="cross-entropy.html"><span>12</span>Cross-Entropy</a></li><li><a  href="rotary-embedding.html"><span>13</span>RoPE · 旋转位置编码</a></li></ol></div><div class="nav-group"><p>优化流程</p><ol><li><a  href="optimize-loop.html"><span>14</span>优化循环</a></li><li><a  href="profiling.html"><span>15</span>性能分析</a></li><li><a  href="bottleneck-diagnosis.html"><span>16</span>瓶颈诊断</a></li><li><a  href="verification.html"><span>17</span>正确性验证</a></li><li><a  href="benchmark.html"><span>18</span>基准测试</a></li></ol></div></nav></details>
+<div class="page-meta" lang="zh-CN"><span>优化方法</span><span>03 / 18</span></div>
+<div class="source-note" lang="zh-CN">原文：<a href="https://github.com/ZJLi2013/awesome-kernel-skills/blob/aba7662286ee19df68ce94cb7d363554f7157f0a/skills/optimization/tier3-compute-fusion/SKILL.md">ZJLi2013 / skills/optimization/tier3-compute-fusion/SKILL.md</a><span>原文内容保留 · HTML 阅读版</span></div>
+<details class="outline"><summary>本页目录 <span>7 个章节</span></summary><ol><li class="depth-2"><a href="#mixed-precision">Mixed precision</a></li><li class="depth-2"><a href="#fused-epilogue-patterns">Fused epilogue patterns</a></li><li class="depth-2"><a href="#inner-loop-hygiene">Inner loop hygiene</a></li><li class="depth-2"><a href="#fast-math-intrinsics-cudahip-style">Fast math intrinsics (CUDA/HIP style)</a></li><li class="depth-2"><a href="#compiler-and-framework-flags-orientation">Compiler and framework flags (orientation)</a></li><li class="depth-2"><a href="#when-not-to-fuse">When not to fuse</a></li><li class="depth-2"><a href="#agent-instructions">Agent Instructions</a></li></ol></details>
+<article class="prose" aria-label="Tier 3: Compute Optimization and Fusion"><h1 id="tier-3-compute-optimization-and-fusion">Tier 3: Compute Optimization and Fusion</h1>
+<p><strong>AutoKernel Tier 3</strong>: reduce instructions per useful flop and fuse memory round-trips into the same kernel pass.</p>
+<h2 id="mixed-precision">Mixed precision</h2>
+<ul>
+<li>Use <strong>FP16/BF16/FP8</strong> for inputs where acceptable; keep <strong>FP32 (or wider) accumulators</strong> for reductions and matmul (<code>tl.dot</code> acc) to preserve accuracy.</li>
+<li>Match <strong>layout and instruction</strong> (e.g. tensor/MMA width) to the narrow type actually used.</li>
+</ul>
+<h2 id="fused-epilogue-patterns">Fused epilogue patterns</h2>
+<p>Fuse into the same kernel to avoid extra global traffic:</p>
+<div class="table-scroll" tabindex="0" role="region" aria-label="表格，可横向滚动"><table>
+<thead>
+<tr>
+<th>Pattern</th>
+<th>When it matters</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Bias</strong> (row/col)</td>
+<td>LLM linear layers, conv fc</td>
+</tr>
+<tr>
+<td><strong>Scale / per-channel scale</strong></td>
+<td>quantization, norm fusion</td>
+</tr>
+<tr>
+<td><strong>Activation</strong> (GELU, ReLU, clamp)</td>
+<td>MLP blocks</td>
+</tr>
+<tr>
+<td><strong>Quantize to int8/fp8</strong></td>
+<td>inference export</td>
+</tr>
+</tbody></table></div>
+<p><strong>Rule</strong>: if the epilogue is <strong>memory-bandwidth limited</strong>, fusion is high ROI; if already <strong>compute-saturated</strong>, fusion still saves launches but may need register tuning.</p>
+<h2 id="inner-loop-hygiene">Inner loop hygiene</h2>
+<ul>
+<li><strong>Hoist invariants</strong> out of the K (inner) loop; keep hot paths branch-free.</li>
+<li><strong>Reduce branches</strong> on lanes: predication and masks beat divergent <code>if</code> in inner loops.</li>
+<li><strong>Unroll</strong> only where it hides latency without blowing register budget.</li>
+</ul>
+<h2 id="fast-math-intrinsics-cudahip-style">Fast math intrinsics (CUDA/HIP style)</h2>
+<div class="table-scroll" tabindex="0" role="region" aria-label="表格，可横向滚动"><table>
+<thead>
+<tr>
+<th>Intrinsic / pattern</th>
+<th>Typical use</th>
+<th>Caveat</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>__expf</code>, <code>__exp10f</code></td>
+<td>softmax, activations</td>
+<td>lower precision vs libm</td>
+</tr>
+<tr>
+<td><code>rsqrtf</code>, <code>__frsqrt_rn</code></td>
+<td>norm, attention</td>
+<td>acceptable for ML norms with care</td>
+</tr>
+<tr>
+<td><code>__sincosf</code></td>
+<td>rotary, trig</td>
+<td>pair eval saves bandwidth</td>
+</tr>
+<tr>
+<td><code>__fdividef</code></td>
+<td>non-critical divisions</td>
+<td>faster, less IEEE</td>
+</tr>
+</tbody></table></div>
+<p><strong>When each matters</strong>: <strong>transcendentals</strong> dominate in softmax/attention/layer-norm; <strong>fdivide</strong> helps cheap color-space or scaling loops. Prefer <strong>intrinsics in hot paths</strong>, library precision on <strong>numerically sensitive</strong> reductions.</p>
+<h2 id="compiler-and-framework-flags-orientation">Compiler and framework flags (orientation)</h2>
+<ul>
+<li>CUDA <strong><code>--use-fast_math</code></strong> (or equivalent) globally enables aggressive approximations; prefer <strong>scoped intrinsics</strong> when you need <strong>deterministic</strong> training behavior.</li>
+<li>In Triton, prefer <strong>explicit casts</strong> and <strong><code>tl.math</code></strong> / libdevice-style ops that match the desired <strong>IEEE vs fast</strong> semantics for the pass.</li>
+</ul>
+<h2 id="when-not-to-fuse">When <em>not</em> to fuse</h2>
+<ul>
+<li>If the epilogue is <strong>already bandwidth-light</strong> and fusion <strong>spills registers</strong> causing occupancy collapse, measure <strong>end-to-end</strong> against a two-kernel sequence.</li>
+<li>If <strong>different dtypes</strong> or <strong>layout transforms</strong> force expensive <strong>repack</strong> in-register, a dedicated <strong>transpose/reorder</strong> kernel may win.</li>
+</ul>
+<h2 id="agent-instructions">Agent Instructions</h2>
+<ol>
+<li>Confirm <strong>bottleneck is compute</strong> (high % peak FLOPS, low memory util) before aggressive math shortcuts.</li>
+<li>Identify <strong>epilogue inputs/outputs</strong>; if separate kernels exist between matmul and bias/act/quantize, plan a <strong>single-store</strong> fused path.</li>
+<li>Audit the <strong>innermost loop</strong> for invariant loads and branches; refactor to <strong>mask/predication</strong>.</li>
+<li>Select <strong>fast math</strong> only where error budgets allow; document accuracy tradeoffs for training vs inference.</li>
+<li>If still bound by <strong>launch or tail effects</strong>, continue to <strong>AutoKernel Tier 4</strong> (scheduling).</li>
+</ol>
+</article>
+<details class="metadata"><summary>Skill 元信息</summary><pre><code>name: gpu-opt-tier3-compute-fusion
+description: &gt;-
+  Tightens inner-loop math, mixed precision, fused epilogues, and fast math intrinsics for GPU
+  kernels. Use when kernels are compute-bound, epilogue-bound, or dominated by elementwise ops
+  around matmul-like cores.</code></pre></details>
+<nav class="pager" aria-label="相邻篇目"><a href="tier2-memory-access.html"><span>← 上一篇</span><strong>内存访问与层级</strong></a><a class="next" href="tier4-advanced-scheduling.html"><span>下一篇 →</span><strong>高级调度</strong></a></nav>
+<footer class="page-footer" lang="zh-CN">来源：<a href="https://github.com/ZJLi2013/awesome-kernel-skills">Awesome Kernel Skills</a> · <a href="https://github.com/ZJLi2013/awesome-kernel-skills/commit/aba7662286ee19df68ce94cb7d363554f7157f0a">版本 aba7662</a> · <a href="../">文章首页</a></footer>
+</main>
+</div>
+</body>
+</html>
