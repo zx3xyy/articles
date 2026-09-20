@@ -67,10 +67,12 @@
 .demo-setup-swatch { background: #c48035; }
 @media (max-width: 680px) { .demo-layout-maps { grid-template-columns: 1fr; } .demo-layout-maps > div { min-width: 0; } .demo-cost-controls { grid-template-columns: 1fr; } .demo-cost-results { grid-template-columns: 1fr; gap: 18px; } .demo-cost-metric strong { font-size: 1.8rem; } .demo-ownership { grid-template-columns: 1fr; } .demo-timeline { gap: 3px; } .demo-timeline li { font-size: .65rem; padding: 8px 3px; } .demo-timeline li[aria-current="step"] { padding: 7px 2px; } .demo-card .demo-cell { font-size: .74rem; } }
 @media print { .demo-card { break-inside: avoid; box-shadow: none; } .demo-card input, .demo-controls button, .demo-event-controls, .demo-probe-controls, .demo-reset { display: none; } .demo-card details > * { display: block; } }
+
+.backend-chapter {border-top:4px solid #157b78}.backend-chapter .chapter-kicker {color:#157b78}.backend-chapter details {margin:18px 0;border-left:4px solid #157b78;padding:16px;background:#f0f7f5}.backend-chapter summary {cursor:pointer;font-weight:700}.backend-chapter .mini:nth-child(2) {border-top:3px solid #d18832}.backend-chapter code {overflow-wrap:anywhere}.backend-chapter pre code {overflow-wrap:normal}.backend-chapter pre {overflow-x:auto}.backend-chapter .flow-box {min-width:0}@media print {.backend-chapter details {break-inside:auto}}
 </style></head><body>
 <a class="skip" href="#content">Skip to the handbook</a><div class="mobile-bar"><span>Follow the bytes / TPU Sync</span><button id="menu-toggle" type="button" aria-expanded="false" aria-controls="sidebar">Contents</button></div>
-<aside class="side" id="sidebar"><a class="brand" href="#content"><span>TPU SYNC / FIELD GUIDE</span>Follow the bytes.</a><p class="side-note">From framework objects to the memory that actually moves.</p><nav aria-label="Handbook contents"><p class="nav-label">Framework foundations</p><a href="#framework-map"><span class="num">·</span>Three maps</a><a href="#framework-basics"><span class="num">·</span>Vocabulary &amp; PJRT</a><a href="#tensor-journey"><span class="num">·</span>One tensor’s journey</a><a href="#dependencies"><span class="num">·</span>Dependencies &amp; ABI</a><a href="#workbench"><span class="num">·</span>Start contributing</a><p class="nav-label">Hardware &amp; study route</p><a href="#memory"><span class="num">·</span>TPU memory hierarchy</a><a href="#nvidia"><span class="num">·</span>NVIDIA phrasebook</a><a href="#study-route"><span class="num">·</span>The 8-session plan</a><p class="nav-label">Follow the bytes</p><a href="#session-1"><span class="num">1</span>The memory hotel</a><a href="#session-2"><span class="num">2</span>The secret floor plan</a><a href="#session-3"><span class="num">3</span>The storage passport</a><a href="#session-4"><span class="num">4</span>Booking host memory</a><a href="#session-5"><span class="num">5</span>The block shuffle</a><a href="#session-6"><span class="num">6</span>Async &amp; ownership</a><a href="#session-7"><span class="num">7</span>The bandwidth detective</a><a href="#session-8"><span class="num">8</span>The scenic route</a><p class="nav-label">Reference</p><a href="#abstractions"><span class="num">·</span>Why these abstractions</a><a href="#fast-track"><span class="num">·</span>Two-hour shortcut</a><a href="#self-test"><span class="num">·</span>Check your understanding</a></nav><div class="side-footer"><a href="https://zx3xyy.github.io/articles/">← All articles</a><br><br>Google TorchTPU · Ironwood<br>Data plane, from first principles<br><code>7156a21</code> · September 2026</div></aside>
-<main id="content"><header class="intro"><p class="eyebrow">Engineer’s field guide · Google TorchTPU + TPU7x</p><h1>Follow the bytes.</h1><p class="lead">A practical path through TPU memory, XLA, PJRT, and the TPU Sync data plane—for engineers who already speak NVIDIA.</p><div class="meta"><span><b>8 sessions + framework primer</b></span><span>14–18 hours</span><span>Source snapshot <code>7156a21</code></span><span>Offline demos · no TPU required</span></div><p class="compact" style="margin-top:18px;margin-bottom:0"><a href="#framework-map">Explore the stack</a> · <a href="#demo-layout">Try the layout demo</a> · <a href="#demo-ordering">Test a transfer dependency</a> · <a href="#demo-cost">Explore transfer costs</a></p></header><section class="chapter" id="framework-map" aria-labelledby="framework-map-title"><div class="chapter-head"><span class="chapter-kicker">00</span><h2 id="framework-map-title">Three maps, one working mental model</h2></div>
+<aside class="side" id="sidebar"><a class="brand" href="#content"><span>TPU SYNC / FIELD GUIDE</span>Follow the bytes.</a><p class="side-note">From framework objects to the memory that actually moves.</p><nav aria-label="Handbook contents"><p class="nav-label">Framework foundations</p><a href="#framework-map"><span class="num">·</span>Three maps</a><a href="#framework-basics"><span class="num">·</span>Vocabulary &amp; PJRT</a><a href="#tensor-journey"><span class="num">·</span>One tensor’s journey</a><a href="#dependencies"><span class="num">·</span>Dependencies &amp; ABI</a><a href="#workbench"><span class="num">·</span>Start contributing</a><p class="nav-label">Build a TPU backend</p><a href="#raw-buffer-api"><span class="num">·</span>Raw-buffer code tour</a><a href="#rust-tpu-backend"><span class="num">·</span>Rust KV transfer engine</a><p class="nav-label">Hardware &amp; study route</p><a href="#memory"><span class="num">·</span>TPU memory hierarchy</a><a href="#nvidia"><span class="num">·</span>NVIDIA phrasebook</a><a href="#study-route"><span class="num">·</span>The 8-session plan</a><p class="nav-label">Follow the bytes</p><a href="#session-1"><span class="num">1</span>The memory hotel</a><a href="#session-2"><span class="num">2</span>The secret floor plan</a><a href="#session-3"><span class="num">3</span>The storage passport</a><a href="#session-4"><span class="num">4</span>Booking host memory</a><a href="#session-5"><span class="num">5</span>The block shuffle</a><a href="#session-6"><span class="num">6</span>Async &amp; ownership</a><a href="#session-7"><span class="num">7</span>The bandwidth detective</a><a href="#session-8"><span class="num">8</span>The scenic route</a><p class="nav-label">Reference</p><a href="#abstractions"><span class="num">·</span>Why these abstractions</a><a href="#fast-track"><span class="num">·</span>Two-hour shortcut</a><a href="#self-test"><span class="num">·</span>Check your understanding</a></nav><div class="side-footer"><a href="https://zx3xyy.github.io/articles/">← All articles</a><br><br>Google TorchTPU · Ironwood<br>Data plane, from first principles<br><code>7156a21</code> · September 2026</div></aside>
+<main id="content"><header class="intro"><p class="eyebrow">Engineer’s field guide · Google TorchTPU + TPU7x</p><h1>Follow the bytes.</h1><p class="lead">A practical path through TPU memory, XLA, PJRT, and the TPU Sync data plane—for engineers who already speak NVIDIA.</p><div class="meta"><span><b>8 sessions + framework primer</b></span><span>14–18 hours</span><span>Source snapshot <code>7156a21</code></span><span>Offline demos · no TPU required</span></div><p class="compact" style="margin-top:18px;margin-bottom:0"><a href="#framework-map">Explore the stack</a> · <a href="#rust-tpu-backend">Build a Rust TPU backend</a> · <a href="#demo-layout">Try the layout demo</a> · <a href="#demo-ordering">Test a transfer dependency</a> · <a href="#demo-cost">Explore transfer costs</a></p></header><section class="chapter" id="framework-map" aria-labelledby="framework-map-title"><div class="chapter-head"><span class="chapter-kicker">00</span><h2 id="framework-map-title">Three maps, one working mental model</h2></div>
 <p class="lead">The repository is easier to navigate when each arrow has a job. A compiler transforms a <strong>program</strong>. A runtime manages <strong>resources</strong>. A build system assembles <strong>binaries</strong>.</p>
 <div class="route-tabs" role="group" aria-label="Choose a framework map">
 <button type="button" data-route="compute" aria-pressed="false">01 · Compile a program</button>
@@ -232,6 +234,192 @@
 <p>A raw transfer usually does not compile a fresh program. But the destination’s layout, allocated size, and pending producer work can originate from compiled execution. The copy engine inherits those contracts. This is why “XLA is only for compute” is too simple, and “every copy goes through the entire compiler” is also misleading.</p>
 <p>During graph execution, a buffer can be promised before its contents are ready. During raw restore, the buffer can be alive while a different operation still reads it. Track <strong>identity, representation, ownership, and ordering</strong> independently.</p>
 <p class="source-line"><a href="https://github.com/google/tpu-sync/blob/7156a21fb06f7495545af0eca355b1b8ba580442/tpu_sync/frameworks/torch/torch_tpu_utils.cc#L60">Live storage and materialization in the adapter</a></p>
+</section><section class="chapter backend-chapter" id="raw-buffer-api" aria-labelledby="raw-buffer-api-title"><div class="chapter-head"><span class="chapter-kicker">BUILD</span><h2 id="raw-buffer-api-title">Raw buffers: the byte-transfer contract</h2></div><p class="lead">A tensor describes values. A raw alias gives the transfer engine access to their existing storage. The useful unit for a KV offload engine is <strong>allocation handle + byte offset + byte count + completion</strong>.</p>
+<div class="two-track"><div class="mini"><span class="tag">Host-side objects</span><h3>The luggage tags</h3><p><code>PjRtMemorySpace</code> describes a storage location. <code>PjRtBuffer</code> represents particular tensor storage. <code>PJRT_RawBuffer</code> gives a byte-oriented interface to that storage. These handles live on the host; the payload can live in TPU HBM.</p></div><div class="mini"><span class="tag">Actual payload</span><h3>The luggage</h3><p><code>xla::Literal</code> holds concrete tensor values on the host. A raw D2H snapshot instead preserves the device’s physical bytes, potentially including tiling and padding. It need not be converted into a Literal to be cached and restored.</p></div></div>
+<h3>What the extension actually adds</h3>
+<p>The following names omit the common <code>PJRT_RawBuffer_</code> prefix. This is a reading of the upstream header as checked on September 20, 2026, <strong>not a guarantee that every installed libtpu version implements every entry point</strong>.</p>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>Extension entry point</th>
+<th>Input → output</th>
+<th>Meaning for the engine</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>CreateRawAliasOfBuffer</code></td>
+<td>Existing <code>PJRT_Buffer</code> → raw handle</td>
+<td>Access the same allocation; no payload copy</td>
+</tr>
+<tr>
+<td><code>CopyRawDeviceToHost</code></td>
+<td>Raw handle, host destination, byte offset/count → event</td>
+<td>Snapshot a physical range</td>
+</tr>
+<tr>
+<td><code>CopyRawHostToDevice</code></td>
+<td>Host source, raw handle, byte offset/count → event</td>
+<td>Restore compatible bytes into existing storage</td>
+</tr>
+<tr>
+<td><code>GetOnDeviceSizeInBytes</code></td>
+<td>Raw handle → physical storage size</td>
+<td>Validate against actual allocation capacity</td>
+</tr>
+<tr>
+<td><code>GetMemorySpace</code></td>
+<td>Raw handle → memory-space handle</td>
+<td>Identify the storage location</td>
+</tr>
+<tr>
+<td><code>GetHostPointer</code></td>
+<td>Raw handle → pointer if host-visible</td>
+<td>Does not make TPU HBM CPU-addressable</td>
+</tr>
+<tr>
+<td><code>Destroy</code></td>
+<td>Raw handle → release</td>
+<td>Release this handle’s ownership; not permission to abandon in-flight host memory</td>
+</tr>
+</tbody>
+</table></div>
+<p>The object's <strong>vtable</strong> additionally declares reference counting, an opaque device pointer, slicing, mutability queries, allocation/readiness events, dependency-aware H2D/D2H operations, and copy scheduling between raw buffers. These are distinct from the extension entry points above. In particular, the entry-point copy argument structs have <strong>no dependency-list field</strong>; do not assume they accept a CUDA-stream-equivalent parameter.</p>
+<p>The header supplies aliases of existing buffers, not a standalone <code>cudaMalloc</code> replacement. It is optional and experimental. Discover it from the active runtime, validate available structure sizes/version compatibility, and report an unsupported configuration clearly. A definition in a header is not proof of implementation in the loaded plugin.</p>
+<p class="source-line"><a href="https://github.com/openxla/xla/blob/main/xla/pjrt/c/pjrt_c_api_raw_buffer_extension.h">Upstream raw-buffer extension and vtable (moving main)</a> · <a href="https://openxla.org/xla/pjrt/cpp_api_overview">PJRT object model</a></p>
+<h3>External references are ownership tools, not copy engines</h3>
+<p>An external reference can keep an allocation alive while external code uses it. It neither moves the bytes nor proves that the last writer has finished. Keeping a framework tensor alive is usually enough for its ordinary framework-managed lifetime; explicitly sharing raw storage introduces another ownership boundary.</p>
+<p>A pointer is useful only with a runtime contract for allocation, access, copying, synchronization, and release. CUDA exposes that contract through pointers and streams. This PJRT path exposes it through handles and events. For a byte-preserving cache, the tensor semantics can stay outside the copy loop; lifetime and ordering cannot.</p>
+<h3>The code to read with a highlighter</h3>
+<p>All TPU Sync links below pin the inspected <code>7156a21</code> source snapshot. The snippets are shortened for explanation; follow the links for complete error handling.</p>
+<details class="demo-details" open><summary>1 · Resolve the allocation the model actually uses</summary>
+<p><code>UnpackTorchTensor</code> validates the tensor, calls <code>GetBaseTensorBuffer</code>, materializes the <strong>base</strong>, awaits its buffer, then acquires a raw handle. It returns both the handle and an owning <code>TensorBufferHandle</code>.</p>
+<pre><code class="language-text">Torch tensor → base storage owner → PjRtBuffer → RaidenBufferHandle
+                   └──────────────────────────── keep alive
+</code></pre>
+<p>Why “base”? A reshaped view can materialize into another allocation. A perfectly successful H2D into that copy would leave the model’s real cache untouched. The inspected adapter rejects offset/partial views and checks its supported block-major interpretation.</p>
+<p><a href="https://github.com/google/tpu-sync/blob/7156a21fb06f7495545af0eca355b1b8ba580442/tpu_sync/frameworks/torch/torch_tpu_utils.cc#L44">Read <code>torch_tpu_utils.cc:44</code></a>.</p>
+</details>
+<details class="demo-details"><summary>2 · Acquire a common raw interface, not a second cache</summary>
+<p><code>RaidenBufferHandle::Acquire</code> branches on the buffer implementation. The Common-PJRT path retains a raw reference/hold. The C-API path discovers the extension, creates a raw alias, and puts its destruction in a shared <code>RawBufferHolder</code>.</p>
+<p>This is the portability seam: the upper transfer loop works in byte ranges while the adapter handles runtime differences. Missing extensions return an error. An alias is access to storage, not a new allocation with copied values.</p>
+<p><a href="https://github.com/google/tpu-sync/blob/7156a21fb06f7495545af0eca355b1b8ba580442/tpu_sync/core/raw_transfer_core.h#L133">Read <code>raw_transfer_core.h:133</code></a>.</p>
+</details>
+<details class="demo-details"><summary>3 · Submit the byte range and capture its event</summary>
+<pre><code class="language-cpp">// Abbreviated from CopyRawDeviceToHostEvent; not standalone code.
+PJRT_RawBuffer_CopyRawDeviceToHost_Args args;
+args.struct_size = PJRT_RawBuffer_CopyRawDeviceToHost_Args_STRUCT_SIZE;
+args.extension_start = nullptr;
+args.buffer = c_raw_buffer;
+args.dst = host_ptr;
+args.offset = device_offset;  // bytes, not tokens or elements
+args.transfer_size = size;   // bytes
+args.event = nullptr;
+auto* err = c_hold-&gt;extension-&gt;PJRT_RawBuffer_CopyRawDeviceToHost(&amp;args);
+// Handle immediate submission error; otherwise retain args.event.
+</code></pre>
+<p>This is the narrow FFI operation a Rust backend can wrap. Submission success is not transfer success. Bounds, layout, host registration, and producer ordering must already be satisfied by the surrounding integration.</p>
+<p><a href="https://github.com/google/tpu-sync/blob/7156a21fb06f7495545af0eca355b1b8ba580442/tpu_sync/core/raw_transfer_core.h#L274">Read <code>raw_transfer_core.h:274</code></a>.</p>
+</details>
+<details class="demo-details"><summary>4 · Aggregate completion and retain the owners</summary>
+<p><code>IssueD2hShard</code> submits a list of <code>{dst, src_off, size}</code> descriptors. <code>PjRtCopyFuture::FromEvents</code> groups the resulting events with buffer holds. <code>PjRtEventBundle</code> owns event destruction; the future exposes readiness, error probing, and waiting.</p>
+<p>The C-event path intentionally avoids exchanging <code>xla::Future</code>/<code>tsl::AsyncValue</code> objects between independently built XLA libraries. A C ABI reduces that C++ compatibility problem; it does not make an experimental extension permanently ABI-stable.</p>
+<p><strong>Readiness and success are separate:</strong> <code>PollError()</code> alone can return OK while work is pending. Check completion and final status. Also audit what happens if submission number two fails after number one succeeded; already-submitted work still needs owners and cleanup. Treat this as an implementation review question, not a claim that every error path is safe merely because a future exists.</p>
+<p><a href="https://github.com/google/tpu-sync/blob/7156a21fb06f7495545af0eca355b1b8ba580442/tpu_sync/core/raw_transfer_core.h#L341">Event ownership and future: line 341</a> · <a href="https://github.com/google/tpu-sync/blob/7156a21fb06f7495545af0eca355b1b8ba580442/tpu_sync/core/raw_transfer_core.h#L619">Shard submission: line 619</a>.</p>
+</details>
+</section><section class="chapter backend-chapter" id="rust-tpu-backend" aria-labelledby="rust-tpu-backend-title"><div class="chapter-head"><span class="chapter-kicker">BUILD</span><h2 id="rust-tpu-backend-title">A Rust KV engine with a TPU backend</h2></div><p class="lead">Keep the existing control plane’s decisions. Add a backend that translates a logical cache transfer into TPU-compatible ranges, ownership, and completion. This is a proposed architecture—not an implemented or hardware-validated Rust port.</p>
+<div class="flow-figure"><div class="flow-line"><div class="flow-box">Shared Rust control plane<small>Keys · placement · eviction · scheduling</small></div><span class="flow-arrow">→</span><div class="flow-box hot">Transfer contract<small>Handle · ranges · dependencies · ticket</small></div><span class="flow-arrow">→</span><div class="flow-box">CUDA or PJRT backend<small>Native copies and completion</small></div></div></div>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>Concern</th>
+<th>Reuse or adapt?</th>
+<th>Concrete boundary</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Cache identity, eviction, request coordination</td>
+<td>Reuse</td>
+<td>Logical keys and block IDs</td>
+</tr>
+<tr>
+<td>Queueing, backpressure, metrics</td>
+<td>Reuse if backend-neutral</td>
+<td>Transfer tickets and byte accounting</td>
+</tr>
+<tr>
+<td>Host network/storage transport</td>
+<td>Usually reusable</td>
+<td>Host regions; registration requirements can differ</td>
+</tr>
+<tr>
+<td>Device storage identity</td>
+<td>Adapt</td>
+<td>Opaque backend handle plus allocation generation</td>
+</tr>
+<tr>
+<td>Block geometry</td>
+<td>TPU adapter</td>
+<td>Layer/shard-specific physical extents</td>
+</tr>
+<tr>
+<td>Execution dependencies</td>
+<td>TPU adapter</td>
+<td>Last-writer/next-reader contract with the model runtime</td>
+</tr>
+<tr>
+<td>Submission and completion</td>
+<td>TPU backend</td>
+<td>PJRT copies/events rather than CUDA calls/streams</td>
+</tr>
+</tbody>
+</table></div>
+<h3>Draw the FFI boundary around ownership</h3>
+<p>Use the model’s existing runtime/client. A small TorchTPU C++ bridge may be needed to obtain the base allocation and owner. Keep C++ objects such as ATen tensors and XLA futures behind that bridge; export opaque C handles to Rust. The transfer adapter can then invoke the compatible PJRT C APIs. Avoid constructing an unrelated client and assuming it can operate on the framework’s buffers.</p>
+<pre><code class="language-rust">// Proposed Rust-side model; illustrative, not a compilable API.
+struct DeviceRegion {
+    allocation: Arc&lt;DeviceAllocation&gt;, // framework owner + raw alias
+    generation: u64,                   // detect stale/replaced storage
+    offset: u64,
+    len: u64,
+}
+
+struct InFlightTransfer {
+    device: Arc&lt;DeviceAllocation&gt;,
+    host: Arc&lt;RegisteredHostRegion&gt;,
+    completion: BackendCompletion,     // CUDA event or PJRT events
+}
+
+submit_d2h(region, host_region, dependency) -&gt; TransferTicket
+submit_h2d(host_region, region, dependency) -&gt; TransferTicket
+</code></pre>
+<p>The engine’s dependency argument is a <strong>proposed abstraction</strong>. The basic PJRT raw-copy entry points do not directly take it. Start by satisfying dependencies with explicit framework synchronization; add supported event integration after correctness is established. Keep handles in their owning process/runtime unless an explicit cross-process protocol exists.</p>
+<p><code>Arc</code> alone does not establish thread safety or prevent a write race. Do not assert <code>Send</code>/<code>Sync</code> for FFI objects without checking the runtime contract. Validate ranges with checked arithmetic, convert to the API’s signed sizes safely, and obey host/offset alignment requirements.</p>
+<h3>Who owns a transfer after the request disappears?</h3>
+<div class="callout"><p><strong>Dropping a Rust future is not cancelling DMA.</strong> Let an engine-owned in-flight registry retain the device owner, raw alias, host allocation/registration, events, and runtime for as long as native work can access them. A caller’s ticket can disappear without releasing those resources prematurely.</p></div>
+<p>An event worker can poll readiness or use supported callbacks, then inspect final status and wake the Rust task. A blocking <code>Await</code> belongs on a dedicated blocking worker, not an async executor thread. Event destruction is resource cleanup, not a substitute for proving that payload access has ended. On shutdown, drain outstanding work before unloading its runtime.</p>
+<pre><code class="language-text">Producer complete → D2H submitted → D2H succeeds → host snapshot valid
+                                                    ↓
+                           Device block reusable only when no readers remain
+
+Host snapshot valid → H2D submitted → H2D succeeds → next model reader
+</code></pre>
+<p>If a batch partially submits, retain and drain the submitted subset, fail the overall ticket, and do not advertise a complete snapshot. Prevent reuse of its host slots while those copies can still write them. If restore fails, mark the affected cache state unusable until repaired rather than letting attention consume a partial update.</p>
+<h3>One logical block, several physical parcels</h3>
+<p>Suppose a backend layout descriptor says block stride is 128 bytes and live regions inside each block are <code>(0,16)</code> and <code>(32,16)</code>. Logical block 3 becomes physical ranges <code>(384,16)</code> and <code>(416,16)</code>. The control plane can keep asking for “block 3”; the layout adapter produces the two parcels.</p>
+<p>That geometry is illustrative. Actual offsets come from the cache’s supported physical layout and per-layer/shard metadata. Preserve a representation descriptor with snapshots: shape, dtype, layout/padding, sharding, and an integration-defined compatibility identifier. Allocation generation identifies a live storage instance; representation compatibility determines whether bytes can be restored into another one. Equal byte length alone proves neither.</p>
+<p>Raw NVIDIA and TPU snapshots are generally not interchangeable. Cross-backend portability requires a canonical representation and conversion. Byte-preserving offload within a compatible TPU layout is a smaller first target. Host page locking, PJRT device registration, and NIC registration are also separate contracts; CUDA-pinned memory is not automatically a registered TPU DMA endpoint.</p>
+<h3>A small lab before the throughput race</h3>
+<ol>
+<li><strong>Probe:</strong> record TorchTPU/libtpu/PJRT versions, raw-extension availability, allocation size/layout, and host-memory requirements. Unsupported configurations fail clearly.</li>
+<li><strong>Round trip:</strong> fill a real model-owned cache with distinct block patterns; D2H one block, overwrite its device contents through a supported path, and restore it. Verify all values and untouched neighboring blocks.</li>
+<li><strong>Model-visible proof:</strong> run attention using the restored cache and compare against an unmodified baseline. A byte check on a detached alias is insufficient.</li>
+<li><strong>Lifetime/error proof:</strong> drop caller tickets while transfers run, exercise partial submission failure and allocation replacement, and verify resources remain retained until safe cleanup.</li>
+<li><strong>Overlap:</strong> add supported producer/copy/consumer dependencies; test under concurrent model execution. Measure useful payload bandwidth, physical bytes moved, submission overhead, and time until the consumer can proceed.</li>
+</ol>
+<p>The initial acceptance criterion is a correct model-visible restore with explicit ordering. CUDA-like overlap, batching, registered host pools, and cross-host transport follow once that contract holds.</p>
+<p class="source-line">Implementation starting points: <a href="https://github.com/google/tpu-sync/blob/7156a21fb06f7495545af0eca355b1b8ba580442/tpu_sync/core/raw_transfer_core.h#L257">C-event submission</a> · <a href="https://github.com/google/tpu-sync/blob/7156a21fb06f7495545af0eca355b1b8ba580442/tpu_sync/frameworks/torch/torch_tpu_utils.cc#L44">Torch storage adapter</a> · <a href="https://github.com/google/tpu-sync/blob/7156a21fb06f7495545af0eca355b1b8ba580442/tpu_sync/kv_cache/pool_layout.h#L32">Pool/region representation</a> · <a href="#session-6">Try the existing ordering demo</a> · <a href="#demo-layout">Explore physical layout</a>.</p>
 </section><section class="chapter" id="dependencies" aria-labelledby="dependencies-title"><div class="chapter-head"><span class="chapter-kicker">03</span><h2 id="dependencies-title">Read the dependency tree with a purpose</h2></div><p>Read three vertical slices: <strong>call surface</strong> (<code>api/torch</code> + nanobind), <strong>storage and copies</strong> (<code>frameworks/torch</code> + <code>core</code> + relevant <code>kv_cache</code>), <strong>binary integration</strong> (<code>build.sh</code> + wheel/module shims). Keep transport as the next slice after single-host correctness. Put IFRT/JAX, distributed placement, RPC registry, and dashboards on a later-reading shelf unless a change crosses their boundary.</p>
 <p>The code deliberately separates framework-specific extraction from generic movement. Torch's tensor type caster unpacks a Python object to an <code>at::Tensor</code>; the Torch adapter gets live base storage; shared core code sees raw handles and bounded byte ranges. A new framework adapter should satisfy those contracts instead of teaching the transport about framework tensor classes. The JAX branch makes this visible: it obtains an IFRT array, checks for the <code>pjrt_ifrt</code> runtime, and obtains its PJRT buffer. <a href="https://github.com/google/tpu-sync/blob/7156a21fb06f7495545af0eca355b1b8ba580442/tpu_sync/frameworks/jax/jax_compat.cc#L54" target="_blank" rel="noopener noreferrer">JAX comparison</a>.</p>
 <p><code>libtpu&gt;=0.0.47</code> is the Torch wheel requirement in this pinned checkout. Its comment ties the floor to a multiprocess v7 <code>DmaMap</code> fix. This is evidence that runtime version can affect data-plane correctness, not an invitation to substitute the newest arbitrary binary. <code>requirements.txt</code> includes the JAX development stack; the built wheels have separate authoritative requirements in <code>ci/wheel/BUILD.bazel</code>. <a href="https://github.com/google/tpu-sync/blob/7156a21fb06f7495545af0eca355b1b8ba580442/ci/wheel/BUILD.bazel#L53" target="_blank" rel="noopener noreferrer">Runtime floor and split</a>.</p>
@@ -835,7 +1023,7 @@ submit H2D ─────────────→ H2D completes
 <li><strong>“A CPU PJRT mock test proves v7x behavior.”</strong> It verifies some plumbing. Real layouts, DMA registration, and hardware overlap require device validation.</li>
 </ul>
 <p>For optional CPU-side study, inspect the <code>tiling_utils_test</code>, <code>pool_layout_test</code>, and <code>torch_raw_transfer_test</code> Bazel targets. The last uses mocked Torch buffer registration with CPU PJRT. These are useful learning exercises, with a different evidentiary scope from the real TorchTPU transfer tests.</p>
-</section><footer class="page-footer"><p>Source-grounded educational handbook · September 19, 2026. Repository citations pin <a href="https://github.com/google/tpu-sync/tree/7156a21fb06f7495545af0eca355b1b8ba580442">7156a21fb06f7495545af0eca355b1b8ba580442</a>. Hardware facts use primary documentation. The browser demos are deterministic teaching models; they do not access TPU hardware. Python API examples were checked against the source and parsed for syntax, but the v7x hardware lab has not been executed for this guide.</p><p>The reading content and teaching demos work offline. The hosted article uses Cloudflare Web Analytics for aggregate page-view and performance statistics; the tracker respects Do Not Track and Global Privacy Control. Source links open online documentation when you choose them.</p><button class="btn-quiet" id="print-guide" type="button">Print / save as PDF</button></footer></main><script>(() => {
+</section><footer class="page-footer"><p>Source-grounded educational handbook · Updated September 20, 2026. Rust backend design and raw-buffer code tour added; proposed code has not been run on TPU hardware. Repository citations pin <a href="https://github.com/google/tpu-sync/tree/7156a21fb06f7495545af0eca355b1b8ba580442">7156a21fb06f7495545af0eca355b1b8ba580442</a>. Hardware facts use primary documentation. The browser demos are deterministic teaching models; they do not access TPU hardware. Python API examples were checked against the source and parsed for syntax, but the v7x hardware lab has not been executed for this guide.</p><p>The reading content and teaching demos work offline. The hosted article uses Cloudflare Web Analytics for aggregate page-view and performance statistics; the tracker respects Do Not Track and Global Privacy Control. Source links open online documentation when you choose them.</p><button class="btn-quiet" id="print-guide" type="button">Print / save as PDF</button></footer></main><script>(() => {
   'use strict';
   const repo = 'https://github.com/google/tpu-sync/blob/7156a21fb06f7495545af0eca355b1b8ba580442/';
   const routes = {
