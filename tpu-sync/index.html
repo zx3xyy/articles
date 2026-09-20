@@ -1,0 +1,1129 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="An interactive study guide to Google TorchTPU, XLA, PJRT, and TPU Sync data movement for NVIDIA engineers."><link rel="canonical" href="https://zx3xyy.github.io/articles/tpu-sync/"><meta name="color-scheme" content="light"><title>Follow the bytes — TPU Sync field guide</title><style>:root{--ink:#15263b;--muted:#566679;--line:#d7e0e9;--surface:#fff;--accent:#006e68;--accent-soft:#e5f5f1;--warn:#9c460c;--good:#096b45;--panel-dark:#10263c;--page:#f3f6fa;--mono:ui-monospace,SFMono-Regular,Consolas,"Liberation Mono",monospace;--sans:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color-scheme:light}
+*{box-sizing:border-box}html{scroll-behavior:smooth;scroll-padding-top:30px}body{margin:0;background:var(--page);color:var(--ink);font:16px/1.7 var(--sans)}a{color:var(--accent);text-decoration-thickness:1px;text-underline-offset:3px}a:hover{color:#004e49}button,input,select{font:inherit}button{cursor:pointer}button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible{outline:3px solid #167ccc;outline-offset:4px}button{touch-action:manipulation}.skip{position:fixed;top:-100px;left:20px;background:var(--surface);padding:12px;z-index:50}.skip:focus{top:10px}.side{width:264px;position:fixed;inset:0 auto 0 0;background:var(--panel-dark);color:#eaf1f7;padding:28px 23px 20px;overflow:auto}.brand{font-size:18px;font-weight:750;line-height:1.2;color:#fff;display:block;text-decoration:none}.brand:hover{color:#b8ece2}.brand span{font-family:var(--mono);font-size:12px;letter-spacing:.13em;color:#9cd5cb;display:block;font-weight:500;margin:0 0 9px}.side-note{font-size:13px;color:#aabbcc;line-height:1.55;margin:15px 0 23px}.nav-label{margin:22px 10px 7px;text-transform:uppercase;font:11px/1.4 var(--mono);letter-spacing:.13em;color:#87a2b9}.side nav a{display:block;color:#b8c9d8;padding:7px 10px;font-size:13px;line-height:1.35;text-decoration:none;border-left:2px solid transparent}.side nav a:hover,.side nav a[aria-current=true]{color:#fff;background:#19354e;border-left-color:#6ad5b8}.side nav a .num{font-family:var(--mono);font-size:11px;color:#8fa8bd;display:inline-block;width:23px}.side-footer{font-size:12px;line-height:1.6;color:#8fa8bd;margin-top:24px;padding:16px 10px;border-top:1px solid #334a5e}.side-footer code{color:#d0e3ec;background:transparent;padding:0}main{margin-left:264px;padding:36px 6vw 100px;max-width:1420px}.intro{padding:20px 0 36px;border-bottom:1px solid var(--line);margin-bottom:26px}.eyebrow{font:12px/1.4 var(--mono);text-transform:uppercase;letter-spacing:.12em;color:var(--accent);margin:0 0 12px}h1{font-size:clamp(30px,4vw,49px);line-height:1.12;letter-spacing:-.04em;margin:0 0 18px;font-weight:750;max-width:790px}h2{font-size:28px;line-height:1.25;letter-spacing:-.025em;margin:0 0 24px}h3{font-size:20px;line-height:1.35;letter-spacing:-.015em;margin:32px 0 14px}p{margin:0 0 18px}li{margin:7px 0}ul,ol{padding-left:25px;margin:15px 0 23px}.lead{font-size:18px;line-height:1.65;max-width:820px;color:var(--muted)}.meta{display:flex;flex-wrap:wrap;gap:8px 20px;font-size:12px;color:var(--muted);margin-top:23px}.meta span{display:inline-flex;align-items:center;gap:7px}.meta b{font-weight:600}.chapter{padding:40px 0;border-bottom:1px solid var(--line);scroll-margin-top:24px}.chapter-head{display:flex;gap:17px;align-items:baseline}.chapter-kicker{font:12px/1.5 var(--mono);color:var(--accent);min-width:34px}.chapter-head h2{flex:1}.chapter p,.chapter li{max-width:900px}strong{font-weight:700}code{font:0.88em/1.5 var(--mono);padding:2px 5px;background:#eaf0f5;border-radius:3px;overflow-wrap:anywhere}pre{background:var(--panel-dark);color:#e4edf5;padding:24px;border-radius:7px;overflow:auto;font:13px/1.7 var(--mono);margin:25px 0;tab-size:2}pre code{padding:0;background:none;color:inherit;font:inherit;overflow-wrap:normal}table{width:100%;border-collapse:collapse;font-size:14px;line-height:1.55;margin:25px 0}th{text-align:left;background:#e9eff5;font-weight:650;color:#284359}th,td{padding:14px;border-bottom:1px solid var(--line);vertical-align:top}tr:nth-child(even) td{background:#f9fbfd}.table-scroll{overflow-x:auto;margin:24px 0}.table-scroll table{margin:0;min-width:550px}.callout{padding:21px 25px;background:var(--accent-soft);border-left:3px solid var(--accent);margin:23px 0}.callout p:last-child{margin-bottom:0}.callout.warm{background:#fff3e4;border-color:#b96e15}.mini-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;margin:25px 0}.mini{background:var(--surface);border:1px solid var(--line);padding:23px;border-radius:7px}.mini h3{margin:0 0 10px;font-size:18px}.mini p:last-child{margin:0}.tag{font:11px/1.4 var(--mono);color:var(--muted);display:block;text-transform:uppercase;letter-spacing:.07em;margin-bottom:10px}.route-tabs{display:flex;gap:6px;flex-wrap:wrap;margin:20px 0}.route-tabs button{padding:9px 15px;border:1px solid var(--line);border-radius:5px;background:var(--surface);color:var(--ink);font-size:14px;font-weight:600}.route-tabs button[aria-pressed=true]{background:var(--accent);color:white;border-color:var(--accent)}.map-panel{border:1px solid var(--line);background:var(--surface);border-radius:8px;overflow:hidden;margin:20px 0 24px}.route-subtitle{font-size:14px;padding:17px 23px;margin:0;border-bottom:1px solid var(--line);color:var(--muted)}.route-nodes{display:flex;align-items:stretch;gap:6px;padding:25px 20px;overflow:auto}.route-node{flex:1;min-width:105px;background:#f4f7fa;border:1px solid #ccd8e3;border-radius:5px;padding:16px 10px;color:var(--ink);font-size:13px;line-height:1.45;text-align:left}.route-node small{font:10px/1.5 var(--mono);color:var(--muted);display:block;margin-bottom:7px;text-transform:uppercase}.route-node[aria-pressed=true]{background:var(--accent-soft);border:2px solid var(--accent);padding:15px 9px}.route-arrow{align-self:center;color:#7b8fa2;font-family:var(--mono)}.node-detail{padding:22px 25px;background:#edf6f5;border-top:1px solid #cce1df;min-height:180px}.node-detail h3{margin:0 0 10px}.node-detail p{margin:0 0 10px;font-size:15px}.node-detail p:last-child{margin:0}.source-line{font-size:13px;color:var(--muted)}.flow-figure{margin:25px 0;background:var(--surface);border:1px solid var(--line);padding:25px;border-radius:7px}.flow-line{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.flow-box{flex:1;background:#edf4f8;padding:15px 13px;min-width:140px;border-radius:4px;font-weight:600;font-size:14px;text-align:center;line-height:1.5}.flow-box small{display:block;color:var(--muted);font-size:12px;font-weight:400;margin-top:4px}.flow-box.hot{background:var(--accent-soft)}.flow-arrow{color:var(--accent);font-weight:600}.flow-caption{font-size:13px;color:var(--muted);margin:15px 0 0}.glossary td:first-child{font-weight:650;width:20%}details{margin:20px 0;border:1px solid var(--line);border-radius:5px;background:var(--surface);padding:15px 20px}summary{cursor:pointer;font-weight:650}details[open] summary{margin-bottom:15px}.mobile-bar{display:none}.btn-quiet{background:var(--surface);border:1px solid var(--line);border-radius:5px;padding:8px 13px;color:var(--ink);font-size:13px}.page-footer{font-size:13px;color:var(--muted);padding-top:28px}.two-track{display:grid;grid-template-columns:1fr 1fr;gap:20px}.number-list{counter-reset:step;list-style:none;padding:0}.number-list li{counter-increment:step;position:relative;padding:0 0 15px 45px;border-bottom:1px solid var(--line);margin:18px 0}.number-list li:before{content:counter(step,decimal-leading-zero);position:absolute;left:0;top:2px;font:14px/1.5 var(--mono);color:var(--accent)}.question{font-weight:650}.compact{font-size:14px}.sr-only{position:absolute;width:1px;height:1px;padding:0;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+@media(min-width:1550px){main{padding-left:90px;padding-right:90px;margin-left:calc(264px + (100vw - 1550px)/2)}}
+@media(max-width:1050px){.side{width:225px;padding-left:14px;padding-right:14px}main{margin-left:225px;padding:25px 32px 70px}.route-nodes{flex-wrap:wrap}.route-node{flex-basis:28%;min-width:110px}.route-arrow{display:none}}
+@media(max-width:760px){html{scroll-padding-top:76px}.mobile-bar{display:flex;position:sticky;top:0;z-index:20;background:var(--panel-dark);color:#fff;padding:12px 18px;justify-content:space-between;align-items:center;font-size:14px}.mobile-bar button{background:#23415b;color:white;border:1px solid #446077;border-radius:4px;font-size:13px;padding:7px 11px}.side{display:none;top:62px;width:min(320px,88vw);z-index:25;box-shadow:15px 0 35px #10263c33}.side.is-open{display:block}main{margin:0;padding:18px 20px 60px}.intro{padding:12px 0 26px}h1{font-size:34px}h2{font-size:25px}.chapter{padding:30px 0}.chapter-head{gap:10px}.chapter-kicker{min-width:26px}.mini-grid,.two-track{grid-template-columns:1fr}.route-nodes{padding:17px;gap:7px}.route-node{flex-basis:40%;font-size:13px}.node-detail{padding:19px;min-height:0}pre{padding:17px;font-size:12px}.flow-line{flex-direction:column}.flow-box{width:100%}.flow-arrow{transform:rotate(90deg)}.chapter{scroll-margin-top:75px}.meta{gap:8px 13px}.lead{font-size:17px}.table-scroll{margin-right:0}}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}*{animation:none!important;transition:none!important}}
+@media print{body{background:white;font-size:11pt;line-height:1.45}.side,.mobile-bar,.route-tabs,.btn-quiet,.skip{display:none!important}main{margin:0;padding:0;max-width:none}.chapter{break-before:auto;padding:24px 0}h2,h3{break-after:avoid}pre,table,.callout,.mini,.flow-figure{break-inside:avoid}pre{white-space:pre-wrap;background:#eef1f5;color:#15263b;font-size:9pt}.table-scroll{overflow:visible}.table-scroll table{min-width:0}a{color:#00605b}.intro{padding:0}h1{font-size:28pt}h2{font-size:19pt}button{border:1px solid #aaa}.node-detail{min-height:0}}
+
+.demo-card { background: var(--surface, #fff); border: 1px solid var(--line, #d6e1e6); border-radius: 18px; padding: clamp(18px, 3vw, 32px); margin: 28px 0; color: var(--ink, #163041); box-shadow: 0 7px 24px #17384806; }
+.demo-card h3 { margin: 6px 0 12px; font-size: clamp(1.2rem, 2vw, 1.5rem); line-height: 1.25; }
+.demo-card h4 { margin: 0 0 4px; font-size: 1rem; }
+.demo-card p { line-height: 1.65; }
+.demo-eyebrow { font-size: .73rem; text-transform: uppercase; letter-spacing: .12em; color: var(--accent, #087e82); font-weight: 800; }
+.demo-card button, .demo-card select { font: inherit; color: var(--ink, #163041); background: var(--surface, #fff); border: 1px solid var(--line, #d6e1e6); border-radius: 8px; padding: 9px 12px; cursor: pointer; }
+.demo-card button:hover { border-color: var(--accent, #087e82); background: var(--accent-soft, #e5f4f0); }
+.demo-card button:focus-visible, .demo-card select:focus-visible, .demo-card input:focus-visible, .demo-card summary:focus-visible { outline: 3px solid var(--accent, #087e82); outline-offset: 3px; }
+.demo-card select { display: block; margin-top: 6px; min-width: 130px; }
+.demo-card label { font-size: .87rem; font-weight: 650; }
+.demo-controls { display: flex; flex-wrap: wrap; gap: 16px; align-items: end; margin: 20px 0; }
+.demo-layout-maps { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; align-items: start; }
+.demo-caption { color: var(--muted, #57707d); font-size: .8rem; margin: 5px 0 13px; }
+.demo-logical-grid { display: grid; grid-template-columns: repeat(var(--demo-cols, 6), minmax(0, 1fr)); gap: 4px; max-width: 370px; }
+.demo-physical-grid { display: grid; grid-template-columns: repeat(var(--demo-tile-cols, 2), minmax(0, 1fr)); gap: 10px; max-width: 400px; }
+.demo-tile { background: var(--accent-soft, #e5f4f0); border: 1px solid var(--line, #d6e1e6); border-radius: 8px; padding: 6px; }
+.demo-tile-label { font-size: .65rem; color: var(--muted, #57707d); margin-bottom: 5px; }
+.demo-tile-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 3px; }
+.demo-card .demo-cell { min-width: 0; width: 100%; padding: 0; display: grid; place-items: center; aspect-ratio: 1; font-size: clamp(.6rem, 1.2vw, .8rem); font-variant-numeric: tabular-nums; border-radius: 5px; }
+.demo-logical-grid .demo-cell { min-height: 29px; max-height: 48px; }
+.demo-card .demo-cell[aria-pressed="true"] { color: #fff; background: var(--accent, #087e82); border-color: var(--accent, #087e82); font-weight: 800; box-shadow: 0 0 0 2px var(--ink, #163041); position: relative; }
+.demo-padding { background: repeating-linear-gradient(135deg, transparent, transparent 4px, #6c80871f 4px, #6c80871f 7px); color: var(--muted, #57707d); border: 1px dashed #90a3ad; border-radius: 5px; display: grid; place-items: center; font-size: .62rem; aspect-ratio: 1; }
+.demo-readout { border-left: 3px solid var(--accent, #087e82); background: var(--accent-soft, #e5f4f0); padding: 13px 16px; margin: 20px 0 12px; line-height: 1.65; border-radius: 0 8px 8px 0; font-size: .92rem; }
+.demo-readout strong { color: var(--ink, #163041); }
+.demo-readout[data-tone="warn"] { border-color: var(--warn, #a65d12); background: #fff4e8; }
+.demo-readout[data-tone="good"] { border-color: var(--good, #178361); }
+.demo-details { margin-top: 18px; }
+.demo-details summary { cursor: pointer; color: var(--accent, #087e82); font-weight: 650; }
+.demo-details pre { overflow-x: auto; padding: 16px; background: var(--panel-dark, #112a39); color: #e1f4f0; font-size: .8rem; line-height: 1.7; border-radius: 8px; }
+.demo-caveat { color: var(--muted, #57707d); font-size: .8rem; border-top: 1px solid var(--line, #d6e1e6); padding-top: 14px; margin: 18px 0 0; }
+.demo-timeline { list-style: none; padding: 0; margin: 24px 0 12px; display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; counter-reset: demo-stages; }
+.demo-timeline li { padding: 10px 8px; border: 1px solid var(--line, #d6e1e6); border-radius: 8px; font-size: .74rem; color: var(--muted, #57707d); text-align: center; }
+.demo-timeline li::before { counter-increment: demo-stages; content: counter(demo-stages); display: block; font-size: 1rem; font-weight: 750; margin-bottom: 3px; }
+.demo-timeline li[data-complete="true"] { background: var(--accent-soft, #e5f4f0); color: var(--ink, #163041); }
+.demo-timeline li[aria-current="step"] { border: 2px solid var(--accent, #087e82); padding: 9px 7px; box-shadow: 0 3px 0 var(--accent, #087e82); }
+.demo-state { font-weight: 700; min-height: 1.6em; }
+.demo-event-controls, .demo-probe-controls { display: flex; flex-wrap: wrap; gap: 8px; }
+.demo-event-controls button, .demo-probe-controls button, .demo-reset { font-size: .8rem; }
+.demo-event-controls button[data-next="true"] { border-color: var(--accent, #087e82); background: var(--accent-soft, #e5f4f0); font-weight: 750; }
+.demo-ownership { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 22px 0; }
+.demo-owner { padding: 13px; border: 1px solid var(--line, #d6e1e6); border-radius: 8px; }
+.demo-owner strong { display: block; font-size: .84rem; margin-bottom: 6px; }
+.demo-owner span { font-size: .79rem; color: var(--muted, #57707d); line-height: 1.5; display: block; }
+.demo-cost-controls { display: grid; grid-template-columns: 1fr 1fr; gap: 20px 25px; margin: 22px 0; }
+.demo-cost-controls input[type="range"] { display: block; width: 100%; margin-top: 12px; accent-color: var(--accent, #087e82); }
+.demo-cost-controls output { white-space: nowrap; color: var(--accent, #087e82); }
+.demo-cost-results { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; padding: 16px 0; border-top: 1px solid var(--line, #d6e1e6); border-bottom: 1px solid var(--line, #d6e1e6); }
+.demo-cost-metric > span { display: block; color: var(--muted, #57707d); font-size: .76rem; }
+.demo-cost-metric strong { display: block; font-size: clamp(1.2rem, 2.2vw, 1.8rem); font-variant-numeric: tabular-nums; color: var(--accent, #087e82); margin: 6px 0; }
+.demo-cost-metric code { font-size: .78rem; }
+.demo-bars { display: grid; grid-template-columns: 44px 1fr; align-items: center; gap: 10px; margin-top: 22px; }
+.demo-bar-label { color: var(--muted, #57707d); font-size: .78rem; }
+.demo-bar-track { height: 22px; display: flex; background: #e9eef1; border-radius: 4px; overflow: hidden; }
+.demo-bar-data { background: var(--accent, #087e82); height: 100%; }
+.demo-bar-setup { background: #c48035; height: 100%; }
+.demo-swatch { display: inline-block; width: 9px; height: 9px; border-radius: 2px; }
+.demo-data-swatch { background: var(--accent, #087e82); }
+.demo-setup-swatch { background: #c48035; }
+@media (max-width: 680px) { .demo-layout-maps { grid-template-columns: 1fr; } .demo-layout-maps > div { min-width: 0; } .demo-cost-controls { grid-template-columns: 1fr; } .demo-cost-results { grid-template-columns: 1fr; gap: 18px; } .demo-cost-metric strong { font-size: 1.8rem; } .demo-ownership { grid-template-columns: 1fr; } .demo-timeline { gap: 3px; } .demo-timeline li { font-size: .65rem; padding: 8px 3px; } .demo-timeline li[aria-current="step"] { padding: 7px 2px; } .demo-card .demo-cell { font-size: .74rem; } }
+@media print { .demo-card { break-inside: avoid; box-shadow: none; } .demo-card input, .demo-controls button, .demo-event-controls, .demo-probe-controls, .demo-reset { display: none; } .demo-card details > * { display: block; } }
+</style></head><body>
+<a class="skip" href="#content">Skip to the handbook</a><div class="mobile-bar"><span>Follow the bytes / TPU Sync</span><button id="menu-toggle" type="button" aria-expanded="false" aria-controls="sidebar">Contents</button></div>
+<aside class="side" id="sidebar"><a class="brand" href="#content"><span>TPU SYNC / FIELD GUIDE</span>Follow the bytes.</a><p class="side-note">From framework objects to the memory that actually moves.</p><nav aria-label="Handbook contents"><p class="nav-label">Framework foundations</p><a href="#framework-map"><span class="num">·</span>Three maps</a><a href="#framework-basics"><span class="num">·</span>Vocabulary &amp; PJRT</a><a href="#tensor-journey"><span class="num">·</span>One tensor’s journey</a><a href="#dependencies"><span class="num">·</span>Dependencies &amp; ABI</a><a href="#workbench"><span class="num">·</span>Start contributing</a><p class="nav-label">Hardware &amp; study route</p><a href="#memory"><span class="num">·</span>TPU memory hierarchy</a><a href="#nvidia"><span class="num">·</span>NVIDIA phrasebook</a><a href="#study-route"><span class="num">·</span>The 8-session plan</a><p class="nav-label">Follow the bytes</p><a href="#session-1"><span class="num">1</span>The memory hotel</a><a href="#session-2"><span class="num">2</span>The secret floor plan</a><a href="#session-3"><span class="num">3</span>The storage passport</a><a href="#session-4"><span class="num">4</span>Booking host memory</a><a href="#session-5"><span class="num">5</span>The block shuffle</a><a href="#session-6"><span class="num">6</span>Async &amp; ownership</a><a href="#session-7"><span class="num">7</span>The bandwidth detective</a><a href="#session-8"><span class="num">8</span>The scenic route</a><p class="nav-label">Reference</p><a href="#abstractions"><span class="num">·</span>Why these abstractions</a><a href="#fast-track"><span class="num">·</span>Two-hour shortcut</a><a href="#self-test"><span class="num">·</span>Check your understanding</a></nav><div class="side-footer"><a href="https://zx3xyy.github.io/articles/">← All articles</a><br><br>Google TorchTPU · Ironwood<br>Data plane, from first principles<br><code>7156a21</code> · September 2026</div></aside>
+<main id="content"><header class="intro"><p class="eyebrow">Engineer’s field guide · Google TorchTPU + TPU7x</p><h1>Follow the bytes.</h1><p class="lead">A practical path through TPU memory, XLA, PJRT, and the TPU Sync data plane—for engineers who already speak NVIDIA.</p><div class="meta"><span><b>8 sessions + framework primer</b></span><span>14–18 hours</span><span>Source snapshot <code>7156a21</code></span><span>Offline demos · no TPU required</span></div><p class="compact" style="margin-top:18px;margin-bottom:0"><a href="#framework-map">Explore the stack</a> · <a href="#demo-layout">Try the layout demo</a> · <a href="#demo-ordering">Test a transfer dependency</a> · <a href="#demo-cost">Explore transfer costs</a></p></header><section class="chapter" id="framework-map" aria-labelledby="framework-map-title"><div class="chapter-head"><span class="chapter-kicker">00</span><h2 id="framework-map-title">Three maps, one working mental model</h2></div>
+<p class="lead">The repository is easier to navigate when each arrow has a job. A compiler transforms a <strong>program</strong>. A runtime manages <strong>resources</strong>. A build system assembles <strong>binaries</strong>.</p>
+<div class="route-tabs" role="group" aria-label="Choose a framework map">
+<button type="button" data-route="compute" aria-pressed="false">01 · Compile a program</button>
+<button type="button" data-route="bytes" aria-pressed="true">02 · Move the bytes</button>
+<button type="button" data-route="build" aria-pressed="false">03 · Build the extension</button>
+</div>
+<div class="map-panel"><p class="route-subtitle" id="route-subtitle"></p><div class="route-nodes" id="route-nodes" aria-label="Select a component to inspect"></div><div class="node-detail" id="node-detail" aria-live="polite" aria-atomic="true"></div></div>
+<noscript><p>The component explorer needs JavaScript. Its concepts and source links are also explained in the chapters below; all reading content remains available.</p></noscript>
+<p class="compact">Choose a map, then select a component. The runtime map follows references to one allocation; its boxes do not imply five full tensor copies.</p>
+<div class="callout"><p><strong>Your initial working set:</strong> tensor → base storage → physical byte ranges → registered host memory → copy → completion. Learn the compiler boundary well enough to respect its layout and readiness decisions. Add deeper compiler internals only when your change requires them.</p></div>
+<h3>A 90-minute framework warm-up</h3>
+<ol>
+<li>15 min: sort the three graphs; explain why “depends on XLA” does not mean “every copy compiles.”</li>
+<li>20 min: learn PJRT's six handles; attach identity, representation, lifetime, readiness, and completion to actual code.</li>
+<li>25 min: trace the Python loader → binding → <code>at::Tensor</code> → base buffer → manager/raw copy chain.</li>
+<li>20 min: inventory the environment without changing it; record Python/Torch/TorchTPU/libtpu versions, repo revision, TorchTPU XLA pin, and selected extension ABI.</li>
+<li>10 min: choose a symptom from the table and predict the first file to open.</li>
+</ol>
+<p>Pass condition: explain both <code>cache = cpu_tensor.to(&quot;tpu&quot;)</code> and <code>manager.h2d(...)</code>, including who owns the representation conversion, without using “XLA” as a catch-all noun.</p>
+<p class="source-line">The rest of this handbook preserves the original eight-session data-plane plan. Budget roughly 14–18 hours including the new framework foundation.</p></section><section class="chapter" id="framework-basics" aria-labelledby="framework-basics-title"><div class="chapter-head"><span class="chapter-kicker">01</span><h2 id="framework-basics-title">The framework vocabulary</h2></div><div class="table-scroll"><table>
+<thead>
+<tr>
+<th>Component</th>
+<th>Job</th>
+<th>NVIDIA engineer's useful anchor</th>
+<th>Relevance to this repo</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>PyTorch / ATen</td>
+<td>Python tensor interface over the C++ tensor/operator layer; <code>at::Tensor</code> is the C++ tensor handle</td>
+<td>Familiar <code>torch.Tensor</code> / ATen dispatcher</td>
+<td>Binding accepts <code>at::Tensor</code>; it must preserve storage identity</td>
+</tr>
+<tr>
+<td>PrivateUse1</td>
+<td>PyTorch integration mechanism for an external device backend</td>
+<td>A device/dispatch integration slot, not a different tensor math language</td>
+<td>Google TorchTPU registers through it; adapter checks <code>at::DeviceType::PrivateUse1</code></td>
+</tr>
+<tr>
+<td>TorchDynamo / FX</td>
+<td>Capture suitable Python execution into a graph; FX represents that graph</td>
+<td><code>torch.compile</code> frontend you already know</td>
+<td>Explains how compute reaches compilation; not required knowledge for editing byte-offset arithmetic</td>
+</tr>
+<tr>
+<td>StableHLO</td>
+<td>Versioned tensor operation set shared by frontends and compilers</td>
+<td>An interchange IR, not PTX</td>
+<td>Separates operator semantics from a particular framework</td>
+</tr>
+<tr>
+<td>HLO</td>
+<td>XLA's high-level operation representation used during optimization</td>
+<td>Compiler IR before low-level machine scheduling</td>
+<td>Shapes, layouts, fusion, and buffers inform the bytes the transfer path must respect</td>
+</tr>
+<tr>
+<td>MLIR</td>
+<td>Infrastructure for compiler IRs, dialects, and transformations</td>
+<td>Compiler construction machinery</td>
+<td>StableHLO is implemented using MLIR; you need not learn MLIR pass-writing to add transfer validation</td>
+</tr>
+<tr>
+<td>XLA</td>
+<td>Accelerated Linear Algebra compiler; optimizes tensor programs and generates executables</td>
+<td>A compiler/backend role; it is not the exact equivalent of only <code>nvcc</code></td>
+<td>Produces physical execution/layout decisions that raw byte movement must honor</td>
+</tr>
+<tr>
+<td>PJRT</td>
+<td>Device/runtime API for clients, devices, buffers, compilation/execution, and completion</td>
+<td>A runtime/plugin boundary, broadly comparable in role to allocation/launch/copy interfaces</td>
+<td>TPU Sync operates at this boundary and its raw-buffer extension</td>
+</tr>
+<tr>
+<td>libtpu</td>
+<td>Packaged TPU software runtime used by the TPU plugin path</td>
+<td>Vendor runtime implementation below a portable API</td>
+<td>Installed compatibility matters for DMA behavior; repo declares a Torch libtpu floor</td>
+</tr>
+<tr>
+<td>nanobind</td>
+<td>Python↔C++ bindings</td>
+<td>Similar role to pybind11</td>
+<td>Wraps managers/futures and converts Python Torch tensors to <code>at::Tensor</code>; it does not DMA the payload</td>
+</tr>
+<tr>
+<td>IFRT</td>
+<td>Higher-level framework runtime API over execution implementations such as PJRT</td>
+<td>A framework runtime layer, not a transfer engine</td>
+<td>Present in JAX extraction; skip for the initial Torch path</td>
+</tr>
+<tr>
+<td>Bazel / Bzlmod</td>
+<td>Build engine / module dependency resolution</td>
+<td>CMake/Ninja plus dependency/toolchain resolution, loosely</td>
+<td>Compiles extension targets against compatible headers, ABI, and transitive libraries</td>
+</tr>
+</tbody>
+</table></div>
+<p>Sources: <a href="https://docs.pytorch.org/tutorials/advanced/privateuseone.html" target="_blank" rel="noopener noreferrer">PrivateUse1</a>, <a href="https://openxla.org/stablehlo" target="_blank" rel="noopener noreferrer">StableHLO</a>, <a href="https://openxla.org/xla/architecture" target="_blank" rel="noopener noreferrer">XLA architecture</a>, <a href="https://mlir.llvm.org/" target="_blank" rel="noopener noreferrer">MLIR</a>, <a href="https://openxla.org/xla/pjrt" target="_blank" rel="noopener noreferrer">PJRT</a>, <a href="https://github.com/openxla/xla/blob/main/xla/python/ifrt/README.md" target="_blank" rel="noopener noreferrer">IFRT rationale</a>, <a href="https://github.com/google/tpu-sync/blob/7156a21fb06f7495545af0eca355b1b8ba580442/tpu_sync/frameworks/torch/torch_nanobind_utils.h#L24" target="_blank" rel="noopener noreferrer">tensor type caster</a>.</p>
+<p><strong>Google TorchTPU versus PyTorch/XLA:</strong> use <code>import torch_tpu</code> for the stack in this guide. <code>torch_xla</code> is a separate PyTorch integration that uses the <code>xla</code> device type. Both can involve XLA/PJRT, but their storage APIs and execution behavior are not interchangeable. Do not paste a <code>torch_xla</code> buffer-extraction recipe into this adapter. <a href="https://docs.pytorch.org/xla/release/r2.5/index.html" target="_blank" rel="noopener noreferrer">PyTorch/XLA overview</a>, <a href="https://github.com/google/tpu-sync/blob/7156a21fb06f7495545af0eca355b1b8ba580442/tpu_sync/frameworks/torch/torch_tpu_utils.cc#L46" target="_blank" rel="noopener noreferrer">adapter's actual device check</a>.</p>
+<h3>PJRT objects: handles, not hardware boxes</h3><div class="table-scroll"><table>
+<thead>
+<tr>
+<th>Handle</th>
+<th>Think of it as</th>
+<th>Question it answers</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>PjRtClient</code></td>
+<td>Runtime session, owning device/memory-space objects</td>
+<td>Which backend and resources am I using?</td>
+</tr>
+<tr>
+<td><code>PjRtDevice</code></td>
+<td>A runtime-visible execution location</td>
+<td>Which device can execute this work? Is it addressable by this process?</td>
+</tr>
+<tr>
+<td><code>PjRtMemorySpace</code></td>
+<td>A runtime-described memory location</td>
+<td>Where may this buffer live, and which devices access it?</td>
+</tr>
+<tr>
+<td><code>PjRtBuffer</code></td>
+<td>Owned data plus metadata/readiness</td>
+<td>Which allocation contains these values?</td>
+</tr>
+<tr>
+<td><code>PjRtLoadedExecutable</code></td>
+<td>Compiled work loaded for execution</td>
+<td>What program consumes/produces those buffers?</td>
+</tr>
+<tr>
+<td>Future / <code>PJRT_Event</code></td>
+<td>Completion and status</td>
+<td>Is the promised result ready, and did it succeed?</td>
+</tr>
+</tbody>
+</table></div>
+<p>These are CPU-side handles, not hardware boxes. A buffer can exist before its contents are ready. Do not infer that every hardware memory level is exposed as an allocatable PJRT memory space: VMEM inside a compiled kernel is a separate scheduling concern. <a href="https://openxla.org/xla/pjrt/cpp_api_overview" target="_blank" rel="noopener noreferrer">PJRT component overview</a>.</p>
+<p>The repo's <code>RaidenBufferHandle</code> adds exactly what generic transfer code needs: physical geometry, device, copy methods, and an owner/hold. Raw aliases do not magically validate model-level dependencies. The held reference solves ownership; the appropriate readiness/completion edges solve ordering. <a href="https://github.com/google/tpu-sync/blob/7156a21fb06f7495545af0eca355b1b8ba580442/tpu_sync/core/raw_transfer_core.h#L139" target="_blank" rel="noopener noreferrer">Raw handle</a>.</p>
+<h3>Eager does not mean compiler-free</h3><p>Google TorchTPU offers debug eager (synchronize per operation), strict eager (asynchronous dispatch), and fused eager (group operations). These modes change grouping and submission; eager operations can still involve compilation. With <code>torch.compile</code>, TorchDynamo captures an FX graph, TorchTPU lowers operations toward StableHLO, and XLA produces executable work. This is a conceptual path, not a claim that each tensor copy traverses every stage. <a href="https://developers.googleblog.com/torchtpu-running-pytorch-natively-on-tpus-at-google-scale/" target="_blank" rel="noopener noreferrer">TorchTPU architecture</a>.</p>
+<div class="callout"><p><strong>Five words that unlock most of the code:</strong> <em>lowering</em> translates a program into a representation closer to execution; <em>materialization</em> resolves pending work into usable backing storage; <em>aliasing</em> refers to existing storage; <em>registration</em> makes a host range usable through the device DMA interface; <em>completion</em> reports whether an operation finished successfully. None substitutes for the others.</p></div></section><section class="chapter" id="tensor-journey" aria-labelledby="tensor-journey-title"><div class="chapter-head"><span class="chapter-kicker">02</span><h2 id="tensor-journey-title">One tensor, two host-to-device paths</h2></div>
+<p>Follow two operations that both end with bytes in HBM. Their representation contracts differ.</p>
+<div class="two-track">
+<div class="mini"><span class="tag">Path A · initial placement</span><h3><code>cache = cpu.to("tpu")</code></h3><ol><li>The CPU tensor contains logical values in a CPU layout.</li><li>TorchTPU creates or supplies compatible device storage and arranges the placement through its runtime.</li><li>The framework establishes the device representation; it may need layout conversion.</li><li>Subsequent computation must respect the result’s readiness.</li></ol><p class="compact">The semantic contract is “these values on this device.” Do not assume every implementation does one CPU memcpy followed by one DMA.</p></div>
+<div class="mini"><span class="tag">Path B · raw restore</span><h3><code>manager.h2d(...)</code></h3><ol><li>The manager already refers to the live cache allocation.</li><li>Host slots contain a compatible physical snapshot.</li><li>Block indices become offsets and lengths; raw DMA writes the existing allocation.</li><li>A successful future/event establishes copy completion before the next consumer.</li></ol><p class="compact">The semantic contract is “put these device-compatible bytes in this existing storage.” It does not imply automatic conversion from arbitrary CPU tensors.</p></div>
+</div>
+<p>The Torch manager recovers the PJRT client from the existing TorchTPU device buffer. It does not establish a separate device runtime for each block. The raw-buffer extension accepts a host pointer, device offset, and length, and the C-API path returns an event. The TPU implementation is reached through TorchTPU and its libtpu dependency.</p>
+<p class="source-line"><a href="https://github.com/google/tpu-sync/blob/7156a21fb06f7495545af0eca355b1b8ba580442/tpu_sync/frameworks/torch/kv_cache_manager.cc#L72">Client extraction</a> · <a href="https://github.com/google/tpu-sync/blob/7156a21fb06f7495545af0eca355b1b8ba580442/tpu_sync/core/raw_transfer_core.h#L257">Raw copy/event boundary</a> · <a href="https://github.com/google/tpu-sync/blob/7156a21fb06f7495545af0eca355b1b8ba580442/ci/wheel/BUILD.bazel#L62">libtpu dependency</a></p>
+<h3>Why the compiler still matters to the copy engine</h3>
+<p>A raw transfer usually does not compile a fresh program. But the destination’s layout, allocated size, and pending producer work can originate from compiled execution. The copy engine inherits those contracts. This is why “XLA is only for compute” is too simple, and “every copy goes through the entire compiler” is also misleading.</p>
+<p>During graph execution, a buffer can be promised before its contents are ready. During raw restore, the buffer can be alive while a different operation still reads it. Track <strong>identity, representation, ownership, and ordering</strong> independently.</p>
+<p class="source-line"><a href="https://github.com/google/tpu-sync/blob/7156a21fb06f7495545af0eca355b1b8ba580442/tpu_sync/frameworks/torch/torch_tpu_utils.cc#L60">Live storage and materialization in the adapter</a></p>
+</section><section class="chapter" id="dependencies" aria-labelledby="dependencies-title"><div class="chapter-head"><span class="chapter-kicker">03</span><h2 id="dependencies-title">Read the dependency tree with a purpose</h2></div><p>Read three vertical slices: <strong>call surface</strong> (<code>api/torch</code> + nanobind), <strong>storage and copies</strong> (<code>frameworks/torch</code> + <code>core</code> + relevant <code>kv_cache</code>), <strong>binary integration</strong> (<code>build.sh</code> + wheel/module shims). Keep transport as the next slice after single-host correctness. Put IFRT/JAX, distributed placement, RPC registry, and dashboards on a later-reading shelf unless a change crosses their boundary.</p>
+<p>The code deliberately separates framework-specific extraction from generic movement. Torch's tensor type caster unpacks a Python object to an <code>at::Tensor</code>; the Torch adapter gets live base storage; shared core code sees raw handles and bounded byte ranges. A new framework adapter should satisfy those contracts instead of teaching the transport about framework tensor classes. The JAX branch makes this visible: it obtains an IFRT array, checks for the <code>pjrt_ifrt</code> runtime, and obtains its PJRT buffer. <a href="https://github.com/google/tpu-sync/blob/7156a21fb06f7495545af0eca355b1b8ba580442/tpu_sync/frameworks/jax/jax_compat.cc#L54" target="_blank" rel="noopener noreferrer">JAX comparison</a>.</p>
+<p><code>libtpu&gt;=0.0.47</code> is the Torch wheel requirement in this pinned checkout. Its comment ties the floor to a multiprocess v7 <code>DmaMap</code> fix. This is evidence that runtime version can affect data-plane correctness, not an invitation to substitute the newest arbitrary binary. <code>requirements.txt</code> includes the JAX development stack; the built wheels have separate authoritative requirements in <code>ci/wheel/BUILD.bazel</code>. <a href="https://github.com/google/tpu-sync/blob/7156a21fb06f7495545af0eca355b1b8ba580442/ci/wheel/BUILD.bazel#L53" target="_blank" rel="noopener noreferrer">Runtime floor and split</a>.</p>
+<h3>The dependency budget: learn this now, park that for later</h3><div class="table-scroll"><table>
+<thead>
+<tr>
+<th>Learn first</th>
+<th>Recognize the boundary</th>
+<th>Defer until your change crosses it</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Python manager and Torch adapter</td>
+<td>XLA layout and pending execution</td>
+<td>Writing MLIR/XLA passes</td>
+</tr>
+<tr>
+<td>Raw handles, futures, byte ranges</td>
+<td>PJRT plugin implementation / libtpu</td>
+<td>JAX IFRT extraction</td>
+</tr>
+<tr>
+<td>Host allocation and DMA mapping</td>
+<td>nanobind and ATen type conversion</td>
+<td>Registry and RPC orchestration</td>
+</tr>
+<tr>
+<td>Per-layer block geometry</td>
+<td>Bazel targets and shared-library loading</td>
+<td>Fleet deployment and dashboards</td>
+</tr>
+</tbody>
+</table></div>
+<p>This is a learning priority, not a claim that the deferred dependencies disappear from the binary. The data-plane path is a vertical slice through a larger system.</p>
+<h3>API, ABI, and why the loader looks complicated</h3><p>An API is the source-level contract. An ABI includes binary conventions such as symbols, layouts, calling conventions, and virtual function tables. Two headers can look similar while the resulting shared libraries disagree about a C++ object's representation.</p>
+<p>This is a concrete repo constraint: TPU Sync invokes C++ virtual methods on PJRT objects created by TorchTPU. <code>build.sh torch</code> resolves the XLA revision embedded in the TorchTPU wheel/check-out and builds against it, with this repo's patches. <code>MODULE.bazel</code>'s default XLA pin follows the JAX leg. The script warns that a combined JAX+Torch build has only one XLA module and cannot express both pins, and requires Torch-only release builds. <a href="https://github.com/google/tpu-sync/blob/7156a21fb06f7495545af0eca355b1b8ba580442/build.sh#L202" target="_blank" rel="noopener noreferrer">Exact explanation</a>.</p>
+<p>There is a second boundary: both TorchTPU and TPU Sync can contain independently built XLA C++ code. Passing <code>xla::Future</code>/<code>tsl::AsyncValue</code> across that boundary is fragile; the raw TPU completion path therefore uses PJRT C events. This stabilizes that completion boundary; it does <strong>not</strong> erase every other C++ ABI dependency. <a href="https://github.com/google/tpu-sync/blob/7156a21fb06f7495545af0eca355b1b8ba580442/tpu_sync/core/raw_transfer_core.h#L249" target="_blank" rel="noopener noreferrer">C-event rationale</a>.</p>
+<p>There is a third boundary: shared-library symbol lookup. The wheel build uses TorchTPU headers without linking a duplicate implementation, then <code>patchelf</code> adds a <code>NEEDED</code> entry for the matching TorchTPU glue library. The loader uses local scope, avoiding duplicate XLA allocator registration caused by globally preloading runtime symbols. Copying a <code>.so</code> from another Torch build or changing <code>RTLD_LOCAL</code> to <code>RTLD_GLOBAL</code> can break this carefully chosen arrangement. <a href="https://github.com/google/tpu-sync/blob/7156a21fb06f7495545af0eca355b1b8ba580442/tpu_sync/frameworks/torch/BUILD#L27" target="_blank" rel="noopener noreferrer">Header-only build boundary</a>, <a href="https://github.com/google/tpu-sync/blob/7156a21fb06f7495545af0eca355b1b8ba580442/build.sh#L378" target="_blank" rel="noopener noreferrer">linking explanation</a>, <a href="https://github.com/google/tpu-sync/blob/7156a21fb06f7495545af0eca355b1b8ba580442/tpu_sync/api/torch/torch_tpu_common_loader.py#L31" target="_blank" rel="noopener noreferrer">loader</a>.</p>
+</section><section class="chapter" id="workbench" aria-labelledby="workbench-title"><div class="chapter-head"><span class="chapter-kicker">04</span><h2 id="workbench-title">Start working in the repository</h2></div><p><strong>Inventory → import → placement → round-trip → focused edit → focused verification.</strong> On an already provisioned development machine, first record package metadata without initializing TPU hardware:</p>
+<pre><code class="language-bash">git rev-parse HEAD
+cat torch_tpu.version
+cat .bazelversion
+python3 - &lt;&lt;'PY'
+from importlib import metadata
+for name in (&quot;torch&quot;, &quot;torch_tpu&quot;, &quot;libtpu&quot;, &quot;tpu_sync_torch&quot;):
+    try:
+        print(name, metadata.version(name))
+    except metadata.PackageNotFoundError:
+        print(name, &quot;not installed under this distribution name&quot;)
+PY
+</code></pre>
+<p>Package inventory does not prove ABI compatibility or working hardware. Then use the <a href="#session-5">block-shuffle lab</a>: a small, synchronized <code>to(&quot;tpu&quot;) → manager D2H → H2D → cache.cpu()</code> round trip. This separates failure stages: import/ABI, initial placement/runtime, raw-copy geometry, and semantic validation. Build only after reading prerequisites with <code>./build.sh torch</code>; the script downloads dependencies and can install prerequisite packages, so it is not an inspection command. It is inspected here, not executed.</p>
+<h3>Find the first file from the symptom</h3><div class="table-scroll"><table>
+<thead>
+<tr>
+<th>Symptom/change</th>
+<th>First files</th>
+<th>What to inspect before editing</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Python argument or import failure</td>
+<td><code>api/torch/kv_cache_manager.py:34</code>, <code>api/torch/torch_abi.py</code>, <code>torch_tpu_common_loader.py:31</code></td>
+<td>Which extension/ABI variant loads? Which runtime imports first?</td>
+</tr>
+<tr>
+<td>Python→C++ behavior</td>
+<td><code>frameworks/torch/tpu_raiden_torch_module.cc:183</code>, <code>torch_nanobind_utils.h:24</code></td>
+<td>Conversions, exception/status propagation, GIL release around waits</td>
+</tr>
+<tr>
+<td>Tensor rejected / H2D succeeds but model sees old data</td>
+<td><code>frameworks/torch/torch_tpu_utils.cc:44</code></td>
+<td>Full-storage view, zero offset, base storage identity, materialization</td>
+</tr>
+<tr>
+<td>Wrong blocks / wrong byte count</td>
+<td><code>kv_cache/kv_cache_manager_base.cc:289</code>, <code>pool_layout.cc</code></td>
+<td>Per-layer physical stride, source/destination ID spaces, bounds/live regions</td>
+</tr>
+<tr>
+<td>Registration failure / NUMA slowdown</td>
+<td><code>core/host_memory_allocator.cc:157</code>, <code>core/tpu_utils.cc</code></td>
+<td>Actual allocation owner, DmaMap status, topology and locality evidence</td>
+</tr>
+<tr>
+<td>Hang or early reuse</td>
+<td><code>core/raw_transfer_core.h:249</code>, <code>:358</code>, copy issue paths</td>
+<td>Producer readiness, event status, retained holds, slot reuse boundary</td>
+</tr>
+<tr>
+<td>Slow many-small-block transfers</td>
+<td>Copy chunk construction / manager issue paths</td>
+<td>Fixed cost, coalescing only when both source and destination are contiguous</td>
+</tr>
+<tr>
+<td>Cross-host throughput problem</td>
+<td><code>transport/lib/raw_buffer_transport.cc</code></td>
+<td>Actual host payload socket route, staging capacity and completion</td>
+</tr>
+<tr>
+<td>Undefined symbols / allocator-registration crash</td>
+<td><code>build.sh:202</code>, <code>:378</code>, <code>frameworks/torch/BUILD:27</code></td>
+<td>Torch ABI, TorchTPU XLA revision, shared-library scope and needed SONAME</td>
+</tr>
+</tbody>
+</table></div>
+<p>Each anchor is a starting point, not the whole call chain. Search identifiers before reading whole directories:</p>
+<pre><code class="language-bash">rg -n 'GetBaseTensorBuffer|Materialize|AwaitBuffer' tpu_sync/frameworks/torch
+rg -n 'CopyRawHostToDeviceEvent|CopyRawDeviceToHostEvent|FromEvents' tpu_sync/core
+rg -n 'DmaMap|DmaUnmap|HostBufferAllocation' tpu_sync/core
+rg -n 'row_size|GetOnDeviceSizeInBytes|IssueH2d|IssueD2h' tpu_sync/kv_cache tpu_sync/core
+</code></pre>
+<p>Build orientation commands (not executed for the guide): <code>./build.sh torch</code> is the repository's Torch build route; read its prerequisites and side effects first. Bazel labels have the form <code>//package:target</code>; <code>@xla//...</code> refers to an external repo. Inspect <code>//tpu_sync/frameworks/torch:_tpu_raiden_torch</code>, <code>//tpu_sync/frameworks/torch:torch_raw_transfer_test</code>, <code>//tpu_sync/core:host_memory_allocator_test</code>, and <code>//tpu_sync/kv_cache:pool_layout_test</code>. Reuse the build script's resolved overrides/toolchain when invoking test targets. Mock/CPU tests check contracts; TPU DMA/layout/overlap needs hardware validation.</p>
+<p>Suggested early contribution: add a clearly scoped geometry validation/error message or physical-byte telemetry field. Keep the first change within one vertical slice. Demonstrate a failing case with a deliberately mismatched block mapping or view, then show a correct mapping and untouched-block preservation. Do not start by replacing all futures or upgrading every module pin.</p>
+<h3>A first contribution you can finish</h3>
+<p>Trace an existing full-storage-view rejection, understand why the invalid view cannot be block-addressed, and improve its diagnostic with the relevant shape or offset. Keep the supported behavior unchanged. Verify a valid full view, an invalid offset view, and untouched-block preservation on the real copy path. This exercises the binding → adapter → geometry slice without redesigning the runtime.</p>
+<p>Before changing an algorithm, write its contract on one page: accepted tensor layouts, logical versus physical byte counts, host/device ID domains, owner lifetime, completion status, and the consumer’s dependency. That page becomes your test plan.</p>
+</section><section class="chapter" id="memory" aria-labelledby="memory-title"><div class="chapter-head"><span class="chapter-kicker"></span><h2 id="memory-title">Start with the physical machine</h2></div><p>A fast arithmetic unit needs a continuous supply of operands. Large memories provide capacity; nearby small memories provide cheaper, faster reuse. Transfers and reuse connect the two. This gives us the questions to ask before opening any class definition: Where are the bytes now? Where will the next consumer execute? How much must move? In what representation? What proves the move is finished?</p>
+<figure class="flow-figure"><div class="flow-line"><div class="flow-box">Registered host DRAM<small>Raw physical snapshot</small></div><span class="flow-arrow">↔</span><div class="flow-box hot">Chiplet-local HBM<small>TPU Sync crosses this boundary via PCIe</small></div><span class="flow-arrow">↔</span><div class="flow-box">VMEM<small>Compiler / kernel scheduled DMA</small></div><span class="flow-arrow">↔</span><div class="flow-box">Registers → compute<small>Vector and matrix operations</small></div></div><figcaption class="flow-caption">Normal framework placement additionally handles logical CPU values and device representation. Scalar work uses its own memory/register resources. The diagram shows a conceptual dense-data path.</figcaption></figure>
+<p>This is a conceptual dense-tensor path, not a complete wiring diagram. <strong>TPU Sync operates primarily across the host DRAM↔HBM boundary.</strong> It does not implement the attention kernel's HBM↔VMEM pipeline. Keep those two transfer problems separate while learning how their performance interacts.</p>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>Scope</th>
+<th>v7x fact to keep in your notebook</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Physical package</td>
+<td>Two chiplets; 192 GiB aggregate HBM; about 7.38 TB/s aggregate HBM bandwidth</td>
+</tr>
+<tr>
+<td>Chiplet / TensorCore</td>
+<td>Separate memory space; about 96 GiB HBM and 3.7 TB/s HBM bandwidth</td>
+</tr>
+<tr>
+<td>On-chip memory per TensorCore</td>
+<td>64 MiB VMEM and 1 MiB SMEM</td>
+</tr>
+<tr>
+<td>Host VM</td>
+<td>Four physical packages, two NUMA nodes, 960 GB host RAM</td>
+</tr>
+<tr>
+<td>Device enumeration</td>
+<td>Frameworks such as JAX expose two devices per package; inspect your TorchTPU/PJRT visibility rather than inferring it from a machine name</td>
+</tr>
+</tbody>
+</table></div>
+<p>The capacity table uses GiB; some Cloud prose uses “GB” inconsistently. A package's aggregate HBM is not one chiplet's allocation budget. HBM bandwidth, host PCIe bandwidth, and ICI bandwidth measure different links. <a href="https://docs.cloud.google.com/tpu/docs/tpu7x" target="_blank" rel="noopener noreferrer">Cloud TPU7x architecture</a>, <a href="https://docs.jax.dev/en/latest/pallas/tpu/hardware.html" target="_blank" rel="noopener noreferrer">JAX TPU hardware reference</a>.</p>
+<p>VMEM is explicitly managed SRAM. Its physical capacity does not grow when you change the compiler's scoped-VMEM allocation limit; that budget also interacts with prefetch use. <a href="https://docs.cloud.google.com/tpu/docs/ironwood-performance" target="_blank" rel="noopener noreferrer">Ironwood optimization guide</a>.</p>
+<p>For architecture background, read the memory and DMA discussion in the <a href="https://arxiv.org/pdf/2606.15870" target="_blank" rel="noopener noreferrer">Google authors' TPU architecture paper</a>. HBM↔VMEM movement is scheduled, with asynchronous DMA and completion mechanisms. The payoff is predictable operand supply and reuse; the cost is that layout, working-set size, and scheduling matter. Your familiar “load once, reuse many times” instinct survives the trip from CUDA.</p>
+</section><section class="chapter" id="nvidia" aria-labelledby="nvidia-title"><div class="chapter-head"><span class="chapter-kicker"></span><h2 id="nvidia-title">An NVIDIA phrasebook—with the translation limits included</h2></div><div class="table-scroll"><table>
+<thead>
+<tr>
+<th>Familiar idea</th>
+<th>Useful TPU translation</th>
+<th>Where the analogy stops</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>GPU global memory</td>
+<td>TPU HBM</td>
+<td>A v7x package contains separately addressed chiplets</td>
+</tr>
+<tr>
+<td>Explicitly staged shared memory</td>
+<td>VMEM serves a similar reuse purpose</td>
+<td>VMEM is not an NVIDIA L2 cache or a CUDA shared-memory API</td>
+</tr>
+<tr>
+<td>NVIDIA Tensor Core</td>
+<td>TPU MXU is the matrix-compute comparison</td>
+<td>A TPU <strong>TensorCore</strong> is a larger programmable core containing scalar/vector/matrix resources</td>
+</tr>
+<tr>
+<td>Pinned host allocation / registration</td>
+<td>PJRT pinned-host allocation or DMA-mapped host pages</td>
+<td>A CPU pointer or ordinary Torch CPU tensor does not itself prove TPU DMA registration</td>
+</tr>
+<tr>
+<td>Async copy plus event</td>
+<td>Raw copy plus future/PJRT event</td>
+<td>Submission, completion, and consumer ordering are different conditions</td>
+</tr>
+<tr>
+<td>Owning a CUDA allocation</td>
+<td>Owning TorchTPU base storage and raw handles</td>
+<td>A logical tensor view can differ from the physical buffer the model uses</td>
+</tr>
+<tr>
+<td>Peer-device transfer</td>
+<td>Inspect the actual route</td>
+<td>This repo's documented cross-node path stages through host DRAM</td>
+</tr>
+<tr>
+<td>CUDA streams</td>
+<td>Think first in dependency edges</td>
+<td>Do not assume Google TorchTPU exposes equivalent queue semantics</td>
+</tr>
+</tbody>
+</table></div>
+<p>Google TorchTPU uses PyTorch's PrivateUse1 backend and supports execution modes with different dispatch behavior. It is distinct from <code>torch_xla</code>, <code>torchax</code>, and the similarly named Sophgo project. Use the compatible Google wheel and exact Torch ABI expected by this checkout, rather than guessing a PyPI package name. <a href="https://developers.googleblog.com/torchtpu-running-pytorch-natively-on-tpus-at-google-scale/" target="_blank" rel="noopener noreferrer">Google TorchTPU overview</a>, <a href="https://github.com/google/tpu-sync/blob/7156a21fb06f7495545af0eca355b1b8ba580442/README.md#L93" target="_blank" rel="noopener noreferrer">repository setup</a>.</p>
+</section><section class="chapter" id="study-route" aria-labelledby="study-route-title"><div class="chapter-head"><span class="chapter-kicker"></span><h2 id="study-route-title">Your route through the course</h2></div><div class="table-scroll"><table>
+<thead>
+<tr>
+<th>Session</th>
+<th style="text-align:right">Time</th>
+<th>Question you must answer</th>
+<th>What you produce</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1. The memory hotel</td>
+<td style="text-align:right">60–90 min</td>
+<td>Why does host offload need its own design?</td>
+<td>A memory map and transfer-cost estimate</td>
+</tr>
+<tr>
+<td>2. A tensor's secret floor plan</td>
+<td style="text-align:right">90–120 min</td>
+<td>Which bytes represent this tensor?</td>
+<td>A hand-derived tiled-layout example</td>
+</tr>
+<tr>
+<td>3. The storage passport</td>
+<td style="text-align:right">90 min</td>
+<td>How does Torch become a safe DMA endpoint?</td>
+<td>An annotated extraction call chain</td>
+</tr>
+<tr>
+<td>4. Booking host memory</td>
+<td style="text-align:right">90 min</td>
+<td>What makes a host pointer useful for DMA?</td>
+<td>An allocation/registration/lifetime diagram</td>
+</tr>
+<tr>
+<td>5. The block shuffle</td>
+<td style="text-align:right">90–120 min</td>
+<td>How do block IDs become byte ranges?</td>
+<td>A verified local D2H→H2D remapping lab</td>
+</tr>
+<tr>
+<td>6. Async without wishful thinking</td>
+<td style="text-align:right">90 min</td>
+<td>When may either side reuse the memory?</td>
+<td>A dependency timeline and ownership table</td>
+</tr>
+<tr>
+<td>7. The bandwidth detective</td>
+<td style="text-align:right">90–120 min</td>
+<td>Which resource limits the path?</td>
+<td>Size-sweep and batching experiment designs</td>
+</tr>
+<tr>
+<td>8. The scenic route</td>
+<td style="text-align:right">120 min</td>
+<td>How do multiple transfers compose?</td>
+<td>A complete KV-restore explanation and capstone</td>
+</tr>
+</tbody>
+</table></div>
+<p>Allow another hour or two for unfamiliar C++ or for running hardware experiments. A useful rhythm is 15 minutes of prediction, 35 minutes of code reading, 30 minutes of experimentation, and 10 minutes explaining the result aloud. Predict first: otherwise every benchmark result looks plausible.</p>
+</section><section class="chapter" id="session-1" aria-labelledby="session-1-title"><div class="chapter-head"><span class="chapter-kicker">S1</span><h2 id="session-1-title">The memory hotel: the penthouse has a tiny kitchen</h2></div><p>HBM is the warehouse; VMEM is the kitchen counter; registers hold the ingredients currently being used. Host DRAM is the warehouse across town. Renting more storage across town does not make every meal faster.</p>
+<p>Start with two calculations. For an illustrative unsharded cache with 32 layers, 8 KV heads, head dimension 128, and BF16:</p>
+<pre><code class="language-text">KV bytes/token = 2 (K and V) × 32 × 8 × 128 × 2 bytes
+               = 131,072 bytes = 128 KiB
+8,192 tokens   = 1 GiB of KV
+256 tokens    = 32 MiB across all these layers
+</code></pre>
+<p>These are model-wide bytes. Derive the local shard's payload before making per-device claims; sharding and replication can change it.</p>
+<p>Now suppose you measure <strong>25 GB/s</strong> for one particular host-transfer scope. That is a hypothetical input, not a v7x specification. A 1 GiB one-way transfer has a bandwidth-only time of about <strong>42.9 ms</strong>; offload plus restore costs about <strong>85.9 ms</strong> before overhead. At 3.7 TB/s, the same byte count divided by chiplet HBM bandwidth is about <strong>0.29 ms</strong>. Neither number is a complete kernel latency. The comparison explains why repeatedly leaving HBM can be expensive.</p>
+<p><strong>Read:</strong> the hardware sources above, then the narrow overview of <a href="https://github.com/google/tpu-sync/blob/7156a21fb06f7495545af0eca355b1b8ba580442/tpu_sync/core/raw_transfer.md#L1" target="_blank" rel="noopener noreferrer">raw transfer</a>. Treat the older raw-transfer document as orientation; later sessions distinguish its JAX examples from current Torch behavior.</p>
+<p><strong>Exercise:</strong> draw three independent arrows: host↔HBM, HBM↔VMEM, and accelerator↔accelerator fabric. Write capacity next to memory boxes and bandwidth next to links. Do not attach “7.38 TB/s” to the host arrow.</p>
+<p><strong>Pass condition:</strong> explain why offloading can improve capacity or avoid recomputation while still adding transfer latency. Estimate whether restoring a cached prefix costs less than recomputing it.</p>
+<p>To connect this back to VMEM, consider a toy square matrix multiply of tile width <code>b</code>. Loading two BF16 input tiles costs <code>4b²</code> bytes; the multiply performs roughly <code>2b³</code> floating-point operations. Ignoring output traffic and other overhead, reuse gives <code>b/2</code> FLOP per input byte. Larger tiles improve this ratio but consume more SRAM. Two sets of 1024×1024 BF16 inputs for double buffering plus one FP32 output occupy 12 MiB before workspace. The point is the tradeoff: retain and reuse operands near compute, while leaving room to stage the next work. This is arithmetic for a teaching model, not a prescribed v7x kernel configuration.</p>
+</section><section class="chapter" id="session-2" aria-labelledby="session-2-title"><div class="chapter-head"><span class="chapter-kicker">S2</span><h2 id="session-2-title">A tensor&#x27;s secret floor plan</h2></div><p>A tensor has logical coordinates, dtype, shape, and strides. A device allocation has a physical layout, possible padding, and byte capacity. DMA receives addresses and lengths. It does not reconstruct tensor semantics for you.</p>
+<p>There are two useful meanings of “transfer from host.” Initial placement with <code>cpu_tensor.to(&quot;tpu&quot;)</code> gives the framework logical CPU values and lets it arrange device storage. A raw <code>manager.h2d(...)</code> restore gives the DMA path bytes already compatible with that destination's physical representation. Capturing them with D2H supplies that representation; inventing ordinary row-major CPU values does not. The optional weight-synchronization chapter shows explicit packing when conversion is needed.</p>
+<p>Why tile at all? Grouping operands consumed together into regular storage regions can simplify bulk movement and local reuse. Padding spends capacity and bandwidth to preserve regular geometry. That is the performance rationale; the runtime's actual layout remains the authority. An MXU compute tile, a vector-register shape, an allocation's XLA tiles, and a transfer's alignment requirement are separate choices.</p>
+<p>Use the repository's toy 6×6 FP32 matrix tiled into 4×4 tiles. Logical size is <code>6×6×4 = 144</code> bytes. Padding to 8×8 requires <code>8×8×4 = 256</code> bytes. The physical footprint is about 1.78 times the useful data. This is a teaching layout from a test, <strong>not a universal v7x tile size</strong>. <a href="https://github.com/google/tpu-sync/blob/7156a21fb06f7495545af0eca355b1b8ba580442/tpu_sync/weight_sync/tiling_utils_test.cc#L176" target="_blank" rel="noopener noreferrer">Padding2D test</a>.</p>
+<p>For this toy, with row-major order both between and within tiles:</p>
+<pre><code class="language-text">tile_id(r,c)   = floor(r/4) × 2 + floor(c/4)
+inside(r,c)    = (r mod 4) × 4 + (c mod 4)
+byte_offset   = 4 × (tile_id × 16 + inside)
+</code></pre>
+<p>Element <code>(4,1)</code> lives at byte 132, whereas an ordinary unpadded row-major array would place it at byte 100. Same logical value; different address arithmetic. An ordinary CPU float view of raw device bytes can therefore look wrong even when the DMA is perfect.</p>
+<p><strong>Read:</strong> <a href="https://github.com/google/tpu-sync/blob/7156a21fb06f7495545af0eca355b1b8ba580442/tpu_sync/core/raw_transfer_core.h#L83" target="_blank" rel="noopener noreferrer">GetMajorSliceByteSize</a> and <a href="https://github.com/google/tpu-sync/blob/7156a21fb06f7495545af0eca355b1b8ba580442/tpu_sync/frameworks/torch/torch_raw_transfer.cc#L165" target="_blank" rel="noopener noreferrer">ValidateMajorDimLayout</a>. The former accounts for supported tiled minor dimensions. The latter checks assumptions needed to address a buffer as consecutive leading-dimension slices.</p>
+<p>There are two paths to keep distinct:</p>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>Path</th>
+<th>How it obtains copy geometry</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Standalone Torch raw batch helpers</td>
+<td><code>GetMajorSliceByteSize</code>, layout validation, chunk construction; partial-copy checks include rank ≥3 and 4096-byte slice alignment</td>
+</tr>
+<tr>
+<td>KV manager used in this course</td>
+<td>Actual per-layer physical allocation bytes divided by its block count; that layer's row width indexes device and host buffers</td>
+</tr>
+</tbody>
+</table></div>
+<p>Those are implementation contracts. The 4096-byte check is not a definition of TPU VMEM, an MXU tile, or every transfer API's granularity. <a href="https://github.com/google/tpu-sync/blob/7156a21fb06f7495545af0eca355b1b8ba580442/tpu_sync/core/utils.h#L256" target="_blank" rel="noopener noreferrer">Partial-copy validation</a>, <a href="https://github.com/google/tpu-sync/blob/7156a21fb06f7495545af0eca355b1b8ba580442/tpu_sync/kv_cache/kv_cache_manager_base.cc#L289" target="_blank" rel="noopener noreferrer">manager physical row sizes</a>.</p>
+<p><strong>Exercise:</strong> calculate offsets for <code>(0,0)</code>, <code>(3,3)</code>, <code>(4,1)</code>, and <code>(5,5)</code> in the toy. Mark padding. Then read a real shape/layout from the runtime before attempting an equivalent calculation for a TPU tensor.</p>
+<section class="demo-card" id="demo-layout" aria-labelledby="demo-layout-title">
+  <div class="demo-eyebrow">Interactive lab 01 · representation</div>
+  <h3 id="demo-layout-title">A tensor’s secret floor plan</h3>
+  <p>Click an element in either map. Its value stays the same; its address changes when we store <strong>4 × 4 tiles</strong> consecutively. Hatching marks padding: allocated bytes that do not represent a logical element.</p>
+  <div class="demo-controls">
+    <label for="demo-shape">Logical FP32 matrix
+      <select id="demo-shape"><option value="4">4 × 4</option><option value="6" selected>6 × 6</option><option value="8">8 × 8</option></select>
+    </label>
+    <button type="button" id="demo-example">Find element (4, 1)</button>
+  </div>
+  <div class="demo-layout-maps">
+    <div><h4>Logical coordinates</h4><p class="demo-caption">Numbers are values: row × width + column.</p><div id="demo-logical" class="demo-logical-grid" aria-label="Logical matrix"></div></div>
+    <div><h4>Physical tiles in allocation order</h4><p class="demo-caption">Read tile 0, then tile 1, then tile 2… Each tile is row-major.</p><div id="demo-physical" class="demo-physical-grid" aria-label="Tiled physical allocation"></div></div>
+  </div>
+  <div class="demo-readout" id="demo-layout-readout" aria-live="polite" aria-atomic="true"></div>
+  <p class="demo-caption" id="demo-layout-size"></p>
+  <details class="demo-details"><summary>Show the address arithmetic</summary><pre id="demo-layout-formula"></pre><p>A raw copy preserves this physical representation. A framework placement operation may transform ordinary CPU values into it. The two operations have different contracts.</p></details>
+  <p class="demo-caveat"><strong>Teaching geometry.</strong> These 4 × 4 tiles illustrate the repository’s toy padding example. They are not a universal TPU7x tile size, MXU shape, or DMA alignment. Query the real runtime layout before calculating real addresses.</p>
+</section><p><strong>Pass condition:</strong> distinguish <code>tensor.nbytes()</code>, runtime physical allocation bytes, live payload bytes, and bytes actually transferred. Explain why a raw D2H snapshot should usually be restored as opaque bytes.</p>
+</section><section class="chapter" id="session-3" aria-labelledby="session-3-title"><div class="chapter-head"><span class="chapter-kicker">S3</span><h2 id="session-3-title">The storage passport: the address must belong to the live cache</h2></div><p>Follow this chain in <a href="https://github.com/google/tpu-sync/blob/7156a21fb06f7495545af0eca355b1b8ba580442/tpu_sync/frameworks/torch/torch_tpu_utils.cc#L44" target="_blank" rel="noopener noreferrer">UnpackTorchTensor</a>:</p>
+<pre><code class="language-text">Torch Tensor
+  → validate device, contiguity, offset, full-storage view
+  → GetBaseTensorBuffer(tensor)
+  → Materialize() the base if deferred
+  → AwaitBuffer()
+  → acquire RaidenBufferHandle
+  → keep the owning TensorBufferHandle
+</code></pre>
+<p>The pivotal word is <strong>base</strong>. A layout-changing view may materialize as a separate allocation. Copying restored KV bytes into that allocation would succeed as a memory operation while failing as a cache update: the model still reads the original storage. The adapter deliberately finds that original storage.</p>
+<p>The inspected adapter requires PrivateUse1 tensors, contiguity, zero storage offset, and a nonempty leading block dimension. It checks full-storage coverage and compatible base/view dimensions, with a specific rank-1 raw-storage→rank-2 block-view allowance. It does not support arbitrary sliced or reshaped tensors merely because PyTorch calls them contiguous.</p>
+<p>Materialization solves another problem: a deferred allocation or operation must be submitted before an await can finish. Read the <a href="https://github.com/google/tpu-sync/blob/7156a21fb06f7495545af0eca355b1b8ba580442/tpu_sync/frameworks/torch/kv_cache_manager_test.py#L173" target="_blank" rel="noopener noreferrer">lazy-cache construction regression test</a>. The lesson is to resolve the actual storage's pending work without accidentally manufacturing a replacement buffer.</p>
+<p><code>RaidenBufferHandle</code> then hides two runtime forms: CommonPJRT raw buffers with holds, and C-API raw aliases with an owning wrapper. Copy code gets a common vocabulary for shape, device, raw copy, and lifetime. This is a boundary between framework/runtime integration and byte movement. <a href="https://github.com/google/tpu-sync/blob/7156a21fb06f7495545af0eca355b1b8ba580442/tpu_sync/core/raw_transfer_core.h#L83" target="_blank" rel="noopener noreferrer">Raw buffer abstraction</a>.</p>
+<p><strong>Exercise:</strong> annotate each call with “identity,” “readiness,” “geometry,” or “ownership.” Find one line that solves each problem. Explain what would break if you returned only a naked <code>PjRtBuffer*</code>.</p>
+<p><strong>Pass condition:</strong> answer this interview trap: “The tensor is contiguous and its Python variable is alive. Is raw DMA therefore safe?” Answer: those facts alone do not establish the correct base allocation, compatible physical layout, or producer/consumer ordering.</p>
+</section><section class="chapter" id="session-4" aria-labelledby="session-4-title"><div class="chapter-head"><span class="chapter-kicker">S4</span><h2 id="session-4-title">Booking host memory: an address is not a DMA reservation</h2></div><p>Trace the production host allocator in <a href="https://github.com/google/tpu-sync/blob/7156a21fb06f7495545af0eca355b1b8ba580442/tpu_sync/core/host_memory_allocator.cc#L157" target="_blank" rel="noopener noreferrer">host_memory_allocator.cc</a>. Its ordinary XLA allocator rounds the allocation up to a page boundary, uses <code>mmap</code>, registers it using <code>PjRtClient::DmaMap</code>, and returns a pointer, size, and shared owner. The owner's cleanup calls <code>DmaUnmap</code> and <code>munmap</code>.</p>
+<p>This is why <code>HostBufferAllocation</code> is more informative than <code>void*</code>: the pointer says where; the size bounds access; the owner says how long the mapping remains valid and how to release it. <a href="https://github.com/google/tpu-sync/blob/7156a21fb06f7495545af0eca355b1b8ba580442/tpu_sync/core/host_memory_allocator.h#L36" target="_blank" rel="noopener noreferrer">Allocation interface</a>.</p>
+<p>The device-aware path attempts NUMA-local allocation using a memory policy and page touches. Locality depends on successful topology resolution and the environment; inspect the policy and logs before claiming the placement worked. A buffer can be registered correctly yet still suffer an expensive cross-socket path.</p>
+<p>The separate <code>RawHostBuffer</code> abstraction first tries a PJRT <code>pinned_host</code> memory space, then falls back to the host allocator. Both routes aim to provide useful host staging, but they are not the same construction path. <a href="https://github.com/google/tpu-sync/blob/7156a21fb06f7495545af0eca355b1b8ba580442/tpu_sync/frameworks/torch/torch_raw_transfer.cc#L165" target="_blank" rel="noopener noreferrer">RawHostBuffer binding implementation</a>.</p>
+<p><strong>Why keep a pool?</strong> Registration and allocation have setup costs. Reusing registered regions amortizes them and makes steady-state transfers easier to pipeline. The cost is reserved host capacity and the obligation to track when a slot can be reused. This is design reasoning from the implementation, not a claim that registration is free or that all host pointers take the fast path.</p>
+<p><strong>Exercise:</strong> draw <code>allocate → map → transfer(s) → completion → unmap → free</code>. Attach every step to its owner. Explain why <code>mmap</code>, page alignment, residency/pinning, and DMA registration are related but different concepts.</p>
+<p>Optional: inspect shared-memory allocation. <code>/dev/shm</code> can preserve bytes across a process restart when the backing segment survives, but it is still volatile host RAM, not disk persistence. A new process must establish its own mappings/registration and validate compatibility. Stop before studying recovery orchestration.</p>
+<p><strong>Pass condition:</strong> explain both the correctness reason and the throughput reason for retaining registered host memory until every user has completed.</p>
+</section><section class="chapter" id="session-5" aria-labelledby="session-5-title"><div class="chapter-head"><span class="chapter-kicker">S5</span><h2 id="session-5-title">The block shuffle: one parcel, several addresses</h2></div><p>Read the Python <a href="https://github.com/google/tpu-sync/blob/7156a21fb06f7495545af0eca355b1b8ba580442/tpu_sync/api/torch/kv_cache_manager.py#L466" target="_blank" rel="noopener noreferrer">d2h/h2d wrappers</a>, the Torch adapter's <a href="https://github.com/google/tpu-sync/blob/7156a21fb06f7495545af0eca355b1b8ba580442/tpu_sync/frameworks/torch/kv_cache_manager.cc#L71" target="_blank" rel="noopener noreferrer">manager construction</a>, and the core <a href="https://github.com/google/tpu-sync/blob/7156a21fb06f7495545af0eca355b1b8ba580442/tpu_sync/kv_cache/kv_cache_manager_base.cc#L2383" target="_blank" rel="noopener noreferrer">copy submission path</a>.</p>
+<p>For layer <code>l</code>, let <code>R_l</code> be its physical bytes per block. A local restore of <code>n</code> consecutive blocks is conceptually:</p>
+<pre><code class="language-text">source pointer     = host_base[l,shard] + source_host_block × R_l
+destination offset = destination_device_block × R_l
+length             = n × R_l
+</code></pre>
+<p>Host block 1 need not contain device block 1. Those IDs name different spaces. Layers may also have different row widths, so borrowing layer 0's byte stride for every layer corrupts heterogeneous caches. The manager computes per-layer widths and allocations. <a href="https://github.com/google/tpu-sync/blob/7156a21fb06f7495545af0eca355b1b8ba580442/tpu_sync/kv_cache/kv_cache_manager_base.cc#L289" target="_blank" rel="noopener noreferrer">Per-layer initialization</a>.</p>
+<p>The following is an <strong>unrun hardware lab</strong>, adapted to the inspected Python signatures and a shape used by the repository's Torch tests. Run it only after installing the matching Google TorchTPU and built TPU Sync extension. It uses one visible TPU device and serial waits; it is a correctness exercise, not a bandwidth benchmark.</p>
+<pre><code class="language-python">import torch
+import torch_tpu  # Google TorchTPU backend registration
+from tpu_sync.api.torch.kv_cache_manager import KVCacheManager
+
+# A position-dependent pattern exposes swaps that constant fills can hide.
+shape = (4, 128, 8)
+reference = torch.arange(4 * 128 * 8, dtype=torch.float32).reshape(shape)
+cache = reference.to(&quot;tpu&quot;)
+torch.tpu.synchronize()  # Finish producers before entering the raw-copy lab.
+
+manager = KVCacheManager(
+    kv_caches=[cache],
+    local_control_port=0,
+    max_blocks=4,
+    num_slots=1,
+    unsafe_skip_buffer_lock=True,
+)
+
+# The caller provides exclusive access here: no concurrent model work,
+# no rebinding/mutation of cache storage, and every copy is awaited.
+manager.d2h(src_offsets=[0, 2], dst_offsets=[0, 1]).Await()
+
+snapshot = manager.read_block_bytes(layer_idx=0, block_id=0)
+print(&quot;raw bytes in one host block:&quot;, len(snapshot))
+# snapshot is an opaque device-layout snapshot, not a CPU float array.
+
+manager.h2d(src_offsets=[0, 1], dst_offsets=[1, 3]).Await()
+
+expected = reference.clone()
+expected[1] = reference[0]
+expected[3] = reference[2]
+actual = cache.cpu()  # Framework conversion for semantic verification.
+torch.testing.assert_close(actual, expected, rtol=0, atol=0)
+print(&quot;PASS: blocks 1 &lt;- 0 and 3 &lt;- 2; untouched blocks preserved&quot;)
+</code></pre>
+<p>The port argument satisfies construction; networking is not part of this lab. The explicit unsafe setting makes the caller's ordering obligation visible. Changing a lock flag alone does not establish every model/transfer dependency.</p>
+<p><strong>Exercise:</strong> before running, draw device <code>[A,B,C,D]</code>, host <code>[A,C,?,?]</code>, then resulting device <code>[A,A,C,C]</code>. Next reverse the restore destinations. Verify untouched blocks as well as copied ones. Use the existing <a href="https://github.com/google/tpu-sync/blob/7156a21fb06f7495545af0eca355b1b8ba580442/tpu_sync/api/torch/kv_cache_manager_test.py#L166" target="_blank" rel="noopener noreferrer">Torch transfer tests</a> as the starting point if your runtime rejects the chosen layout.</p>
+<p><strong>Pass condition:</strong> follow one block from Python index to physical byte range to completed device-visible data, without treating host and device IDs as interchangeable.</p>
+</section><section class="chapter" id="session-6" aria-labelledby="session-6-title"><div class="chapter-head"><span class="chapter-kicker">S6</span><h2 id="session-6-title">Async without wishful thinking</h2></div><p>There are three separate promises:</p>
+<ol>
+<li><strong>Lifetime:</strong> the storage still exists.</li>
+<li><strong>Readiness:</strong> the producer has finished writing the source.</li>
+<li><strong>Exclusivity and ordering:</strong> no conflicting access occurs during the transfer, and the consumer starts after completion.</li>
+</ol>
+<p>A shared pointer mostly answers the first. A completed transfer future answers a particular operation's completion. Neither means every possible writer or reader is correctly ordered.</p>
+<pre><code class="language-text">producer completes
+        ↓
+submit D2H ─────────────→ D2H completes
+                              ↓
+                  host snapshot may be consumed
+                              ↓
+submit H2D ─────────────→ H2D completes
+                              ↓
+                  attention may read destination
+</code></pre>
+<p>Read <a href="https://github.com/google/tpu-sync/blob/7156a21fb06f7495545af0eca355b1b8ba580442/tpu_sync/core/raw_transfer_core.h#L83" target="_blank" rel="noopener noreferrer">PjRtCopyFuture and raw event handling</a>, then <a href="https://github.com/google/tpu-sync/blob/7156a21fb06f7495545af0eca355b1b8ba580442/tpu_sync/core/raw_transfer_core.h#L618" target="_blank" rel="noopener noreferrer">IssueD2hShard/IssueH2dShard</a>. Trace which owners are retained and which operation the completion represents. The manager keeps base-storage references for its lifetime; transfer objects/futures retain additional state as needed. Keep managers, buffers, and futures alive and explicitly await all outstanding work in the first labs.</p>
+<p>There is a software-engineering reason for the PJRT C-event path: TorchTPU and TPU Sync can embed independently built XLA C++ code. Passing C++ futures across that boundary risks ABI mismatches. The code explicitly uses the C event boundary for this case. It is an integration constraint, not a property of HBM. The standalone prepared raw helper follows a different wrapper path, so read the entry point actually used. <a href="https://github.com/google/tpu-sync/blob/7156a21fb06f7495545af0eca355b1b8ba580442/tpu_sync/core/raw_transfer_core.h#L83" target="_blank" rel="noopener noreferrer">C-event rationale</a>.</p>
+<p><strong>Exercise:</strong> draw a two-slot staging ring. Slot 0 carries block A while slot 1 carries block B. Mark the exact completion required before either slot can be overwritten. If a network send also reads a host slot, its completion matters too.</p>
+<p>Then design overlap with independent compute: prefetch block <code>n+1</code> while attention consumes block <code>n</code>, waiting before first use. Confirm overlap with a trace. “Async” in a method name proves neither concurrent hardware progress nor a speedup.</p>
+<section class="demo-card" id="demo-ordering" aria-labelledby="demo-ordering-title">
+  <div class="demo-eyebrow">Interactive lab 02 · ownership</div>
+  <h3 id="demo-ordering-title">The bytes are not ready just because the call returned</h3>
+  <p>Walk one snapshot from source HBM through registered host DRAM to destination HBM. You may press events out of order: the simulator will explain the missing dependency. An async submission starts work; its completion makes the next edge usable.</p>
+  <ol class="demo-timeline" id="demo-timeline">
+    <li data-stage="1">Producer ready</li><li data-stage="2">D2H in flight</li><li data-stage="3">Host ready</li><li data-stage="4">H2D in flight</li><li data-stage="5">Consumer ready</li>
+  </ol>
+  <p class="demo-state" id="demo-state" aria-live="polite"></p>
+  <div class="demo-event-controls" role="group" aria-label="Transfer events">
+    <button type="button" data-event="1">1. Finish producer</button><button type="button" data-event="2">2. Submit D2H</button><button type="button" data-event="3">3. Complete D2H</button><button type="button" data-event="4">4. Submit H2D</button><button type="button" data-event="5">5. Complete H2D</button>
+  </div>
+  <div class="demo-ownership" id="demo-ownership"></div>
+  <div class="demo-probe-controls" role="group" aria-label="Check whether memory access would be safe">
+    <button type="button" data-probe="source">Try reusing source HBM</button><button type="button" data-probe="host">Try overwriting host slot</button><button type="button" data-probe="destination">Try consuming destination</button>
+  </div>
+  <div class="demo-readout" id="demo-event-readout" aria-live="polite" aria-atomic="true">Try submitting H2D before the producer finishes. Which bytes would it read?</div>
+  <button type="button" class="demo-reset" id="demo-reset">Reset the transfer</button>
+  <p class="demo-caveat"><strong>A deterministic model, no real DMA.</strong> Probes check safety without modifying memory. Completion here includes observing the relevant event/future; production code must also retain allocation owners and enforce framework consumer ordering. This toy assumes no other readers or writers. “Consumer ready” does not mean a later consumer has finished.</p>
+</section><p><strong>Pass condition:</strong> diagnose these bugs: host slot overwritten before H2D finishes; device destination read before restore finishes; source cache overwritten during D2H; manager destroyed while background work still references its memory.</p>
+</section><section class="chapter" id="session-7" aria-labelledby="session-7-title"><div class="chapter-head"><span class="chapter-kicker">S7</span><h2 id="session-7-title">The bandwidth detective: the tiny-parcel tax</h2></div><p>Model an isolated transfer as <code>T(S) ≈ α + S/B</code>, where <code>α</code> includes fixed submission/synchronization costs and <code>B</code> is payload bandwidth for a stated scope. With illustrative <code>α=10 µs</code> and <code>B=25 GB/s</code>, a 4 KiB transfer takes about 10.16 µs and achieves only 0.40 GB/s. Bigger or coalesced work amortizes the fixed cost.</p>
+<p>Coalescing is valid when the source and destination runs both continue contiguously. Adjacent source blocks sent to unrelated destination slots are not one ordinary contiguous DMA. A good experiment separates payload size, number of ranges, and allocation setup.</p>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>Experiment</th>
+<th>Hold constant</th>
+<th>Change</th>
+<th>What it can reveal</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Size sweep</td>
+<td>One device, warm buffer pair</td>
+<td>4 KiB through multi-MiB payloads where supported</td>
+<td>Fixed-cost region and throughput plateau</td>
+</tr>
+<tr>
+<td>Fragmentation</td>
+<td>Total bytes</td>
+<td>One run versus many small runs</td>
+<td>Descriptor/submission overhead</td>
+</tr>
+<tr>
+<td>Prepared versus repeated setup</td>
+<td>Payload and placement</td>
+<td>Reuse versus reconstruct transfer state</td>
+<td>Setup amortization</td>
+</tr>
+<tr>
+<td>NUMA placement</td>
+<td>Payload and transfer shape</td>
+<td>Verified local versus remote placement</td>
+<td>Host topology cost</td>
+</tr>
+<tr>
+<td>Concurrency</td>
+<td>Total bytes per trial</td>
+<td>One versus several independent in-flight copies</td>
+<td>Available parallelism and contention</td>
+</tr>
+<tr>
+<td>Duplex</td>
+<td>Allocation scope</td>
+<td>H2D only, D2H only, simultaneous</td>
+<td>Directional versus aggregate throughput</td>
+</tr>
+</tbody>
+</table></div>
+<p>For each trial, materialize tensors first, warm up, start a timer, submit the intended workload, <strong>await all its futures</strong>, and stop the timer. Keep semantic <code>.cpu()</code> checks outside the timed interval. Check correctness before and after the run. Record physical bytes, useful bytes, device count, package count, direction, and whether allocation/registration is included.</p>
+<p>Report a distribution, at least median and tail latency, rather than one lucky sample. If you claim copy/compute overlap, include the overlapped workload's completion and check whether shared HBM or host bandwidth slows either participant.</p>
+<p>Read <a href="https://github.com/google/tpu-sync/blob/7156a21fb06f7495545af0eca355b1b8ba580442/tpu_sync/benchmarks/H2D_D2H_GATING_TEST.md#L1" target="_blank" rel="noopener noreferrer">H2D/D2H gate documentation</a> for experiment structure. Its recorded examples include another TPU generation and multi-device aggregate numbers; do not relabel them as v7x or TorchTPU results. The README's broad bandwidth claims also need workload, direction, and aggregation context.</p>
+<p><strong>Exercise:</strong> produce two plots: latency versus bytes, and achieved bandwidth versus bytes. Fit only a region where the simple model is plausible. Explain a plateau with a resource hypothesis, then design a measurement that could disprove it.</p>
+<section class="demo-card" id="demo-cost" aria-labelledby="demo-cost-title">
+  <div class="demo-eyebrow">Interactive lab 03 · performance</div>
+  <h3 id="demo-cost-title">The parcel is tiny. The paperwork is not.</h3>
+  <p>Hold total payload constant and divide it into sequential transfer submissions. Every submission pays the same hypothetical fixed overhead. Watch how many small ranges can spend more time starting than moving bytes.</p>
+  <div class="demo-cost-controls">
+    <label for="demo-payload">Total payload <select id="demo-payload"><option value="4096">4 KiB</option><option value="65536">64 KiB</option><option value="1048576">1 MiB</option><option value="33554432" selected>32 MiB</option><option value="268435456">256 MiB</option><option value="1073741824">1 GiB</option></select></label>
+    <label for="demo-chunks">Sequential submissions <select id="demo-chunks"><option value="1">1</option><option value="4">4</option><option value="16">16</option><option value="64" selected>64</option><option value="256">256</option><option value="1024">1,024</option></select></label>
+    <label for="demo-overhead">Fixed overhead α: <output id="demo-overhead-value" for="demo-overhead">15 μs</output><input id="demo-overhead" type="range" min="1" max="200" step="1" value="15"></label>
+    <label for="demo-bandwidth">Hypothetical payload rate B: <output id="demo-bandwidth-value" for="demo-bandwidth">25 GB/s</output><input id="demo-bandwidth" type="range" min="1" max="100" step="1" value="25"></label>
+  </div>
+  <div class="demo-cost-results" aria-live="polite" aria-atomic="true">
+    <div class="demo-cost-metric"><span>One submission</span><strong id="demo-one-time"></strong><code>T₁ = α + S/B</code></div>
+    <div class="demo-cost-metric"><span>Many sequential submissions</span><strong id="demo-many-time"></strong><code>Tₙ = nα + S/B</code></div>
+    <div class="demo-cost-metric"><span>Effective many-copy throughput</span><strong id="demo-effective"></strong><span id="demo-slowdown"></span></div>
+  </div>
+  <div class="demo-bars" aria-hidden="true"><div class="demo-bar-label">One</div><div class="demo-bar-track"><div id="demo-one-data" class="demo-bar-data"></div><div id="demo-one-setup" class="demo-bar-setup"></div></div><div class="demo-bar-label">Many</div><div class="demo-bar-track"><div id="demo-many-data" class="demo-bar-data"></div><div id="demo-many-setup" class="demo-bar-setup"></div></div></div>
+  <p class="demo-caption"><span class="demo-swatch demo-data-swatch"></span>Payload time &nbsp; <span class="demo-swatch demo-setup-swatch"></span>Submission overhead · both bars use the same time scale</p>
+  <p class="demo-readout" id="demo-cost-readout" aria-live="polite"></p>
+  <p class="demo-caveat"><strong>A cost model, not a v7x benchmark.</strong> KiB/MiB/GiB use powers of 1024; GB/s uses 10⁹ bytes/s. This model assumes equal sequential chunks, constant sustained payload rate, fixed per-submission overhead, no overlap, no allocation/registration costs, and no range coalescing. A real batch API may change the number of submissions. Tiny chunks may not sustain B. Measure the actual path.</p>
+</section><p><strong>Pass condition:</strong> distinguish a hardware bandwidth regression from increased per-operation overhead. Explain why a saturated large transfer can hide overhead that hurts small KV blocks.</p>
+</section><section class="chapter" id="session-8" aria-labelledby="session-8-title"><div class="chapter-head"><span class="chapter-kicker">S8</span><h2 id="session-8-title">The scenic route, plus the capstone</h2></div><p>The repository's cross-node benchmark explicitly describes this route:</p>
+<figure class="flow-figure"><div class="flow-line"><div class="flow-box hot">Source HBM</div><span class="flow-arrow">→</span><div class="flow-box">Source host DRAM<small>D2H complete before use</small></div><span class="flow-arrow">→</span><div class="flow-box">Remote host DRAM<small>H2H over the host network</small></div><span class="flow-arrow">→</span><div class="flow-box hot">Destination HBM<small>H2D completes before consumption</small></div></div><figcaption class="flow-caption">Device-to-device names the endpoints here. The shown path explicitly stages through host memory.</figcaption></figure>
+<p>It is called device-to-device because of its endpoints. That does not establish a direct ICI or NVLink-like path. TPU documentation also uses “D2D” for <strong>die-to-die</strong> links, which is yet another meaning. Read the <a href="https://github.com/google/tpu-sync/blob/7156a21fb06f7495545af0eca355b1b8ba580442/examples/microbenchmarks/jax_d2d_read_benchmark_runner.py#L15" target="_blank" rel="noopener noreferrer">benchmark's route description</a> and <a href="https://github.com/google/tpu-sync/blob/7156a21fb06f7495545af0eca355b1b8ba580442/tpu_sync/transport/lib/raw_buffer_transport.cc#L243" target="_blank" rel="noopener noreferrer">host socket transport</a>; follow payload pointers rather than names.</p>
+<p>For a serialized payload of size <code>S</code>, model:</p>
+<pre><code class="language-text">T ≈ S/B_D2H + S/B_network + S/B_H2D + overhead
+</code></pre>
+<p>With enough independent chunks and actual overlap, steady-state throughput is bounded by the slowest stage. Shared host-memory traffic, copy overhead, PCIe contention, and limited staging slots can tighten that bound. Pipelining reduces idle time; it does not erase the bytes traversing each stage.</p>
+<p>Now look at <a href="https://github.com/google/tpu-sync/blob/7156a21fb06f7495545af0eca355b1b8ba580442/tpu_sync/kv_cache/pool_layout.h#L32" target="_blank" rel="noopener noreferrer">PoolSpec and RegionSpec</a>. A pool names storage, a base, block stride, and live regions. This lets generic transfer code handle different model-state layouts without understanding attention heads or recurrence equations. The model integration supplies semantics; the byte engine supplies bounded movement.</p>
+<p><strong>The Swiss-cheese exercise:</strong> pool base 8, block stride 128, and two 16-byte live regions at offsets 0 and 32. Blocks 0 and 1 produce <code>(offset,length)</code> pairs <code>(8,16)</code>, <code>(40,16)</code>, <code>(136,16)</code>, <code>(168,16)</code>. Live payload is 64 bytes; the last extent ends at offset 184. Payload size, address span, and allocation capacity differ. <a href="https://github.com/google/tpu-sync/blob/7156a21fb06f7495545af0eca355b1b8ba580442/tpu_sync/kv_cache/pool_layout_test.cc#L183" target="_blank" rel="noopener noreferrer">Extent computation and tests</a>, <a href="https://github.com/google/tpu-sync/blob/7156a21fb06f7495545af0eca355b1b8ba580442/tpu_sync/kv_cache/pool_layout.cc#L276" target="_blank" rel="noopener noreferrer">pool layout implementation</a>.</p>
+<p>Optional representation chapter: raw KV snapshots preserve physical layout because the restore consumer needs those same bytes. Weight synchronization sometimes needs a different contract: <a href="https://github.com/google/tpu-sync/blob/7156a21fb06f7495545af0eca355b1b8ba580442/tpu_sync/weight_sync/weight_synchronizer_base.cc#L419" target="_blank" rel="noopener noreferrer">weight_synchronizer_base.cc</a> calls <code>TileBuffer</code> before H2D and <code>DetileBuffer</code> after D2H. “All host data is opaque tiled data” would therefore be too broad. Preserve representation when compatible; convert when the consumer requires it.</p>
+<p><strong>Capstone:</strong> explain a 256-token cache block's journey from prefill to host offload and back for decode. Supply a diagram, a byte accounting sheet, an ownership/dependency table, and one experiment. You must identify:</p>
+<ol>
+<li>Model-wide useful bytes and this device's shard bytes.</li>
+<li>Physical row size and any padding or omitted live regions.</li>
+<li>The exact live Torch storage being read or updated.</li>
+<li>Host allocation ownership, registration, and locality.</li>
+<li>The mapping between source device, host staging, and destination device IDs.</li>
+<li>The completion boundary before each reuse or consumption.</li>
+<li>The expected bottleneck, using measured bandwidth at matching scope.</li>
+<li>Whether restore beats recomputation, and whether it can finish before attention needs it.</li>
+</ol>
+<p>The last question is the one that turns a transfer library into an inference optimization.</p>
+</section><section class="chapter" id="abstractions" aria-labelledby="abstractions-title"><div class="chapter-head"><span class="chapter-kicker"></span><h2 id="abstractions-title">Why the abstractions exist—your final code-reading checklist</h2></div><div class="table-scroll"><table>
+<thead>
+<tr>
+<th>Abstraction</th>
+<th>Constraint it addresses</th>
+<th>Benefit</th>
+<th>Obligation it leaves with the caller</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Torch adapter / base handle</td>
+<td>Logical tensor may not directly name live physical storage</td>
+<td>Correct storage identity and framework ownership</td>
+<td>Supply a supported view; preserve integration invariants</td>
+</tr>
+<tr>
+<td><code>RaidenBufferHandle</code></td>
+<td>Different PJRT buffer implementations</td>
+<td>Shared copy interface and raw-handle ownership</td>
+<td>Respect readiness, layout, and lifetime contracts</td>
+</tr>
+<tr>
+<td>Host allocation plus owner</td>
+<td>DMA needs valid registered memory</td>
+<td>Reusable staging with defined cleanup</td>
+<td>Prevent premature reuse and excessive reserved memory</td>
+</tr>
+<tr>
+<td>Physical rows / copy chunks</td>
+<td>DMA moves bounded byte ranges</td>
+<td>Cheap block addressing and batching</td>
+<td>Use the right per-layer stride and ID domain</td>
+</tr>
+<tr>
+<td>Future / PJRT event</td>
+<td>Submission finishes before data movement</td>
+<td>Observable completion and asynchronous composition</td>
+<td>Establish producer/consumer dependencies</td>
+</tr>
+<tr>
+<td>Prepared transfer / persistent manager</td>
+<td>Extraction and setup repeat across copies</td>
+<td>Amortized setup</td>
+<td>Rebuild if the underlying storage contract changes</td>
+</tr>
+<tr>
+<td>Pool/region layout</td>
+<td>Different state pools have different live byte patterns</td>
+<td>Generic movement without model-specific transport</td>
+<td>Describe live regions accurately</td>
+</tr>
+</tbody>
+</table></div>
+</section><section class="chapter" id="fast-track" aria-labelledby="fast-track-title"><div class="chapter-head"><span class="chapter-kicker"></span><h2 id="fast-track-title">If you only have two hours</h2></div><p>Spend 20 minutes on the hierarchy and cost model, 30 on <code>UnpackTorchTensor</code>, 25 on physical row addressing and host allocation, 25 drawing and running the block shuffle if hardware is ready, and 20 explaining the completion chain. Leave with one correct transfer story rather than a tour of every directory.</p>
+</section><section class="chapter" id="self-test" aria-labelledby="self-test-title"><div class="chapter-head"><span class="chapter-kicker"></span><h2 id="self-test-title">Self-test, with short answers</h2></div><ul>
+<li><strong>“Zero-copy means zero PCIe traffic.”</strong> No. Aliasing an existing buffer can remove an intermediate copy; host↔HBM DMA still moves the payload.</li>
+<li><strong>“A successful D2H means the CPU can interpret the result as ordinary floats.”</strong> Only if the representation contract says so. Raw KV bytes can preserve device tiling/padding.</li>
+<li><strong>“Keeping the tensor alive prevents races.”</strong> It helps lifetime, not conflicting accesses or ordering.</li>
+<li><strong>“A future became ready, so it succeeded.”</strong> Check its completion status; the Python await wrappers surface errors.</li>
+<li><strong>“Eight visible devices means eight v7x packages.”</strong> Device exposure and package count differ; inspect topology and process visibility.</li>
+<li><strong>“An offload pool enlarges VMEM.”</strong> It adds host capacity. It does not grow on-chip scratchpad.</li>
+<li><strong>“A CPU PJRT mock test proves v7x behavior.”</strong> It verifies some plumbing. Real layouts, DMA registration, and hardware overlap require device validation.</li>
+</ul>
+<p>For optional CPU-side study, inspect the <code>tiling_utils_test</code>, <code>pool_layout_test</code>, and <code>torch_raw_transfer_test</code> Bazel targets. The last uses mocked Torch buffer registration with CPU PJRT. These are useful learning exercises, with a different evidentiary scope from the real TorchTPU transfer tests.</p>
+</section><footer class="page-footer"><p>Source-grounded educational handbook · September 19, 2026. Repository citations pin <a href="https://github.com/google/tpu-sync/tree/7156a21fb06f7495545af0eca355b1b8ba580442">7156a21fb06f7495545af0eca355b1b8ba580442</a>. Hardware facts use primary documentation. The browser demos are deterministic teaching models; they do not access TPU hardware. Python API examples were checked against the source and parsed for syntax, but the v7x hardware lab has not been executed for this guide.</p><p>The page has no external scripts, styles, fonts, or network requests. Source links open online documentation when you choose them.</p><button class="btn-quiet" id="print-guide" type="button">Print / save as PDF</button></footer></main><script>(() => {
+  'use strict';
+  const repo = 'https://github.com/google/tpu-sync/blob/7156a21fb06f7495545af0eca355b1b8ba580442/';
+  const routes = {
+    compute: {
+      text: 'Read these arrows as program transformations. Eager operation dispatch and captured graphs enter the compiler at different granularities.',
+      nodes: [
+        ['PyTorch program', 'Describe work', 'Operations are your source language', 'PyTorch owns the user-facing tensor and operator interface. torch.compile can capture graph regions; it does not mean every TPU Sync byte copy is compiled.', 'Start here for an unsupported operator, a graph break, or model-level semantics.', 'https://docs.pytorch.org/docs/stable/torch.compiler.html'],
+        ['TorchTPU lowering', 'Backend', 'Translate PyTorch semantics', 'Google TorchTPU integrates with PrivateUse1 and lowers operations toward StableHLO. Eager dispatch can still use compilation; eager versus graph mode describes how work is grouped and submitted.', 'Learn the boundary first. You do not need to implement a compiler pass to copy a cache block.', 'https://developers.googleblog.com/torchtpu-running-pytorch-natively-on-tpus-at-google-scale/'],
+        ['StableHLO', 'Program IR', 'An operation vocabulary, not a memory pool', 'StableHLO expresses tensor computation in a portable compiler-facing form. It describes what the computation does; an operation in this IR is not a raw HBM address.', 'Read enough IR to recognize parameters, shapes, dtypes, and operations.', 'https://openxla.org/stablehlo'],
+        ['XLA → executable', 'Compile', 'Choose how computation runs', 'XLA optimizes and lowers the program for the target. Scheduling, fusion, layout, and buffer planning can change memory traffic and the representation seen later by the runtime.', 'Investigate here when compilation, layout, or generated computation is the problem.', 'https://openxla.org/xla/architecture'],
+        ['PJRT execution', 'Run', 'Submit the executable with buffers', 'A loaded executable consumes runtime buffer arguments and produces results. These results can be represented by handles before their contents are ready.', 'Separate compile time, submission time, and time to completion in experiments.', 'https://openxla.org/xla/pjrt/cpp_api_overview']
+      ]
+    },
+    bytes: {
+      text: 'Read these arrows as a runtime access path. The model allocation already exists. Transfer setup resolves its identity, geometry, and ownership.',
+      nodes: [
+        ['Torch cache', 'Logical values', 'The live model cache is the starting point', 'The tensor describes shape and dtype. Contiguity is one check, but it does not prove that arbitrary physical bytes are row-major or that a view names the allocation you intend.', 'Inspect the tensor and its full-storage view contract.', repo+'tpu_sync/frameworks/torch/torch_tpu_utils.cc#L44'],
+        ['Base handle', 'Identity & owner', 'Follow the original storage', 'GetBaseTensorBuffer resolves the allocation backing the tensor. The adapter materializes pending base work, awaits the buffer, and retains an owning handle.', 'This prevents a successful DMA into a detached, materialized view.', repo+'tpu_sync/frameworks/torch/torch_tpu_utils.cc#L60'],
+        ['Raw alias', 'Runtime endpoint', 'A common interface over PJRT buffer types', 'RaidenBufferHandle hides CommonPJRT and C-API raw-buffer variants. Aliasing obtains access to existing storage; it does not copy the whole tensor into a new allocation.', 'Learn which object owns the raw handle and when it may be released.', repo+'tpu_sync/core/raw_transfer_core.h#L133'],
+        ['HBM ↔ host DMA', 'Bytes move', 'Address, length, representation', 'The manager turns block indices into byte ranges. Registered host staging supplies a DMA endpoint; the raw copy preserves the physical representation it transfers.', 'Follow per-layer row size, host mapping, bounds checks, and copy submission.', repo+'tpu_sync/kv_cache/kv_cache_manager_base.cc#L2383'],
+        ['Completion', 'Use safely', 'Submitted is not ready', 'Wait for successful completion before consuming the destination or reusing conflicting source/staging storage. Retaining an owner prevents deallocation, not data races.', 'The first lab uses explicit waits. Add overlap only with a clear dependency proof.', repo+'tpu_sync/core/raw_transfer_core.h#L618']
+      ]
+    },
+    build: {
+      text: 'Read these arrows as build stages and compatibility checks, not as a literal list of every transitive dependency or a path that bytes traverse.',
+      nodes: [
+        ['MODULE / BUILD', 'Resolve', 'Declare the dependency graph', 'MODULE.bazel pins and overrides external modules; BUILD targets select source files, headers, and dependencies. A dependency being present does not mean its service runs on your copy path.', 'Read the target you change before exploring the full graph.', repo+'MODULE.bazel#L1'],
+        ['TorchTPU headers', 'Match runtime', 'Headers describe an installed implementation', 'The wheel-backed shim exports the tensor-buffer interface and Torch headers. It is integration scaffolding, not a full implementation of Google TorchTPU.', 'Check the installed wheel and the matching Torch/XLA ABI.', repo+'shims/torch_tpu/MODULE.bazel#L1'],
+        ['C++ + nanobind', 'Compile & bind', 'Cross the Python/C++ boundary', 'The extension binds manager operations and futures into Python. Core transfer and allocation code lives below it; nanobind does not perform the DMA itself.', 'Use Python for experiments and C++ for addressing, ownership, or copy-path changes.', repo+'tpu_sync/frameworks/torch/tpu_raiden_torch_module.cc#L364'],
+        ['Shared libraries', 'Load', 'Link to the intended symbols', 'Torch-only builds match the TorchTPU XLA surface. The build adds the appropriate shared-library dependency; the loader keeps symbols local to avoid duplicate runtime registration.', 'Treat import/undefined-symbol failures as binary integration problems first.', repo+'build.sh#L378'],
+        ['Focused test', 'Validate', 'Verify the boundary you changed', 'CPU tests can validate layout arithmetic or binding plumbing. A real TPU round trip is needed for device layout and DMA behavior, and measurements for throughput claims.', 'Progress from the smallest test to one-device correctness and then performance.', repo+'tpu_sync/frameworks/torch/torch_raw_transfer_test.cc#L39']
+      ]
+    }
+  };
+  const nodes = document.getElementById('route-nodes');
+  const detail = document.getElementById('node-detail');
+  let currentRoute = 'bytes';
+  function showNode(index) {
+    const [label, kind, title, desc, action, source] = routes[currentRoute].nodes[index];
+    nodes.querySelectorAll('button').forEach((b, i) => b.setAttribute('aria-pressed', String(i === index)));
+    detail.replaceChildren();
+    const tag=document.createElement('span'); tag.className='tag'; tag.textContent=kind+' / '+label;
+    const h=document.createElement('h3'); h.textContent=title;
+    const p=document.createElement('p'); p.textContent=desc;
+    const next=document.createElement('p'); next.textContent=action;
+    const a=document.createElement('a'); a.href=source; a.textContent='Read the source ↗'; a.target='_blank'; a.rel='noopener noreferrer'; a.className='source-line';
+    detail.append(tag,h,p,next,a);
+  }
+  function showRoute(key) {
+    currentRoute=key;
+    document.querySelectorAll('[data-route]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.route === key)));
+    document.getElementById('route-subtitle').textContent=routes[key].text;
+    nodes.replaceChildren();
+    routes[key].nodes.forEach(([label,kind],i) => {
+      if(i){ const arrow=document.createElement('span'); arrow.className='route-arrow'; arrow.textContent='→'; arrow.setAttribute('aria-hidden','true'); nodes.append(arrow); }
+      const b=document.createElement('button'); b.type='button'; b.className='route-node'; b.setAttribute('aria-pressed','false');
+      const s=document.createElement('small'); s.textContent=kind; const t=document.createElement('span'); t.textContent=label; b.append(s,t);
+      b.addEventListener('click',()=>showNode(i)); nodes.append(b);
+    });
+    showNode(0);
+  }
+  document.querySelectorAll('[data-route]').forEach(b=>b.addEventListener('click',()=>showRoute(b.dataset.route)));
+  showRoute('bytes');
+  const menu=document.getElementById('menu-toggle'), side=document.getElementById('sidebar');
+  menu.addEventListener('click',()=>{const opened=side.classList.toggle('is-open'); menu.setAttribute('aria-expanded',String(opened));});
+  side.querySelectorAll('a').forEach(a=>a.addEventListener('click',()=>{side.classList.remove('is-open');menu.setAttribute('aria-expanded','false');}));
+  document.addEventListener('keydown',e=>{if(e.key==='Escape' && side.classList.contains('is-open')){side.classList.remove('is-open');menu.setAttribute('aria-expanded','false');menu.focus();}});
+  const links=[...document.querySelectorAll('.side nav a')];
+  const sections=[...document.querySelectorAll('main .chapter[id]')];
+  function updateActive(){let active=sections[0];for(const s of sections){if(s.getBoundingClientRect().top<160)active=s;}links.forEach(a=>{if(a.getAttribute('href')==='#'+active.id)a.setAttribute('aria-current','true');else a.removeAttribute('aria-current');});}
+  let scheduled=false;window.addEventListener('scroll',()=>{if(!scheduled){scheduled=true;requestAnimationFrame(()=>{updateActive();scheduled=false;});}},{passive:true});updateActive();
+  document.getElementById('print-guide').addEventListener('click',()=>window.print());
+})();
+
+/* Offline teaching models. No device operations or network requests. */
+(function () {
+  'use strict';
+
+  function layoutAddress(n, row, col, tileWidth) {
+    const paddedWidth = Math.ceil(n / tileWidth) * tileWidth;
+    const tileCols = paddedWidth / tileWidth;
+    const tileId = Math.floor(row / tileWidth) * tileCols + Math.floor(col / tileWidth);
+    const withinTile = (row % tileWidth) * tileWidth + col % tileWidth;
+    const slot = tileId * tileWidth * tileWidth + withinTile;
+    return { paddedWidth, tileCols, tileId, withinTile, slot, byteOffset: slot * 4,
+      logicalByteOffset: (row * n + col) * 4, logicalBytes: n * n * 4,
+      physicalBytes: paddedWidth * paddedWidth * 4 };
+  }
+
+  function transferCost(bytes, bandwidthGBs, overheadUs, chunks) {
+    const dataUs = bytes / (bandwidthGBs * 1e9) * 1e6;
+    const oneUs = dataUs + overheadUs;
+    const manyUs = dataUs + chunks * overheadUs;
+    return { dataUs, oneUs, manyUs, slowdown: manyUs / oneUs,
+      effectiveGBs: bytes / (manyUs / 1e6) / 1e9,
+      overheadShare: chunks * overheadUs / manyUs };
+  }
+
+  function probeSafety(stage, resource) {
+    if (resource === 'source') return stage >= 3;
+    if (resource === 'host') return stage < 2 || stage >= 5;
+    if (resource === 'destination') return stage >= 5;
+    return false;
+  }
+
+  // This export lets the arithmetic and ownership rules be verified without a browser.
+  if (typeof module !== 'undefined' && module.exports) {
+    module.exports = { layoutAddress, transferCost, probeSafety };
+  }
+  if (typeof document === 'undefined') return;
+
+  const byId = id => document.getElementById(id);
+  const formatNumber = value => new Intl.NumberFormat('en-US', value !== 0 && Math.abs(value) < 1 ? { maximumSignificantDigits: 3 } : { maximumFractionDigits: 2 }).format(value);
+
+  function initLayout() {
+    if (!byId('demo-layout')) return;
+    const root = byId('demo-layout');
+    let n = 6;
+    let selected = [4, 1];
+
+    function cell(row, col) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'demo-cell';
+      button.textContent = String(row * n + col);
+      button.dataset.row = String(row);
+      button.dataset.col = String(col);
+      const a = layoutAddress(n, row, col, 4);
+      button.setAttribute('aria-label', 'Element (' + row + ', ' + col + '), value ' + (row * n + col) + ', tiled byte offset ' + a.byteOffset);
+      button.setAttribute('aria-pressed', 'false');
+      button.addEventListener('click', () => { selected = [row, col]; updateSelection(); });
+      return button;
+    }
+
+    function updateSelection() {
+      const [row, col] = selected;
+      const a = layoutAddress(n, row, col, 4);
+      root.querySelectorAll('.demo-cell').forEach(button => {
+        const active = Number(button.dataset.row) === row && Number(button.dataset.col) === col;
+        button.setAttribute('aria-pressed', String(active));
+      });
+      byId('demo-layout-readout').innerHTML = '<strong>Element (' + row + ', ' + col + '), value ' + (row * n + col) + '</strong><br>Unpadded row-major: byte <strong>' + a.logicalByteOffset + '</strong>. Tiled allocation: tile <strong>' + a.tileId + '</strong>, slot <strong>' + a.slot + '</strong>, byte <strong>' + a.byteOffset + '</strong>.';
+      byId('demo-layout-size').textContent = n + ' × ' + n + ' useful values = ' + a.logicalBytes + ' B. Padded ' + a.paddedWidth + ' × ' + a.paddedWidth + ' allocation = ' + a.physicalBytes + ' B. Padding: ' + (a.physicalBytes - a.logicalBytes) + ' B (' + formatNumber((a.physicalBytes - a.logicalBytes) / a.physicalBytes * 100) + '% of the allocation).';
+      byId('demo-layout-formula').textContent = 'tile_id = floor(' + row + '/4) × ' + a.tileCols + ' + floor(' + col + '/4) = ' + a.tileId + '\nwithin  = (' + row + ' mod 4) × 4 + (' + col + ' mod 4) = ' + a.withinTile + '\nslot    = ' + a.tileId + ' × 16 + ' + a.withinTile + ' = ' + a.slot + '\nbyte    = ' + a.slot + ' × 4 bytes/FP32 = ' + a.byteOffset + '\n\nAll slots and byte offsets are zero-based.';
+    }
+
+    function render() {
+      const logical = byId('demo-logical');
+      const physical = byId('demo-physical');
+      logical.replaceChildren();
+      physical.replaceChildren();
+      logical.style.setProperty('--demo-cols', String(n));
+      const tileCols = Math.ceil(n / 4);
+      physical.style.setProperty('--demo-tile-cols', String(tileCols));
+      for (let row = 0; row < n; row++) for (let col = 0; col < n; col++) logical.appendChild(cell(row, col));
+      for (let tileRow = 0; tileRow < tileCols; tileRow++) {
+        for (let tileCol = 0; tileCol < tileCols; tileCol++) {
+          const tileId = tileRow * tileCols + tileCol;
+          const tile = document.createElement('div');
+          tile.className = 'demo-tile';
+          const label = document.createElement('div');
+          label.className = 'demo-tile-label';
+          label.textContent = 'Tile ' + tileId + ' · bytes ' + tileId * 64 + '–' + (tileId * 64 + 63);
+          tile.appendChild(label);
+          const grid = document.createElement('div');
+          grid.className = 'demo-tile-grid';
+          for (let r = 0; r < 4; r++) for (let c = 0; c < 4; c++) {
+            const row = tileRow * 4 + r;
+            const col = tileCol * 4 + c;
+            if (row < n && col < n) grid.appendChild(cell(row, col));
+            else {
+              const padding = document.createElement('span');
+              padding.className = 'demo-padding';
+              padding.textContent = 'pad';
+              padding.setAttribute('aria-label', 'Padding at physical slot ' + (tileId * 16 + r * 4 + c));
+              grid.appendChild(padding);
+            }
+          }
+          tile.appendChild(grid);
+          physical.appendChild(tile);
+        }
+      }
+      updateSelection();
+    }
+
+    byId('demo-shape').addEventListener('change', event => {
+      n = Number(event.target.value);
+      selected = [Math.min(selected[0], n - 1), Math.min(selected[1], n - 1)];
+      render();
+    });
+    byId('demo-example').addEventListener('click', () => {
+      n = 6; selected = [4, 1]; byId('demo-shape').value = '6'; render();
+    });
+    render();
+  }
+
+  function initOrdering() {
+    const root = byId('demo-ordering');
+    if (!root) return;
+    let stage = 0;
+    const states = [
+      'Source producer is still running. No snapshot is ready.',
+      'Producer completion observed. Source bytes are ready for D2H.',
+      'D2H submitted. DMA reads source HBM and writes the host slot.',
+      'D2H completion observed. The registered host slot owns a valid snapshot.',
+      'H2D submitted. DMA reads the host snapshot and writes destination HBM.',
+      'H2D completion observed. The destination can now feed an ordered consumer.'
+    ];
+    const nextReasons = [
+      'First observe producer completion; otherwise D2H could read unfinished values.',
+      'First submit D2H; there is no copy whose completion can be observed yet.',
+      'First observe D2H completion; the host slot may still be partially written.',
+      'First submit H2D; no restore has been started.',
+      'First observe H2D completion; the destination may still be partially written.'
+    ];
+
+    function say(message, tone) {
+      byId('demo-event-readout').textContent = message;
+      byId('demo-event-readout').dataset.tone = tone || '';
+    }
+
+    function render() {
+      byId('demo-state').textContent = states[stage];
+      root.querySelectorAll('[data-stage]').forEach(item => {
+        const value = Number(item.dataset.stage);
+        item.dataset.complete = String(value <= stage);
+        if (value === stage) item.setAttribute('aria-current', 'step');
+        else item.removeAttribute('aria-current');
+      });
+      root.querySelectorAll('[data-event]').forEach(button => { button.dataset.next = String(Number(button.dataset.event) === stage + 1); });
+      const source = stage < 1 ? 'Producer owns the writes.' : stage < 3 ? 'Preserve allocation and values for the D2H reader.' : 'D2H no longer uses it; this model permits reuse.';
+      const host = stage < 2 ? 'Registered, available for the upcoming snapshot.' : stage === 2 ? 'D2H owns the write. Keep allocation and mapping alive.' : stage < 5 ? 'Preserve snapshot for H2D. Keep allocation and mapping alive.' : 'H2D no longer reads it; this model permits reuse.';
+      const destination = stage < 4 ? 'Reserved destination. Restored data is not ready.' : stage === 4 ? 'H2D owns the write. Keep allocation alive.' : 'Ready to read after the completion dependency.';
+      byId('demo-ownership').innerHTML = '<div class="demo-owner"><strong>Source HBM</strong><span>' + source + '</span></div><div class="demo-owner"><strong>Registered host DRAM</strong><span>' + host + '</span></div><div class="demo-owner"><strong>Destination HBM</strong><span>' + destination + '</span></div>';
+    }
+
+    root.querySelectorAll('[data-event]').forEach(button => button.addEventListener('click', () => {
+      const event = Number(button.dataset.event);
+      if (event <= stage) { say('Already observed in this transfer. Reset to replay the lifetime from the beginning.', 'warn'); return; }
+      if (event !== stage + 1) { say('Dependency missing. ' + nextReasons[stage], 'warn'); return; }
+      stage = event;
+      render();
+      const notes = [ '', 'Ready means the producer’s writes are complete. Submit the raw D2H copy next.', 'Submission is not completion. Both source storage and registered host storage must stay alive.', 'The host snapshot is complete. Source HBM may be reused, but overwriting the host slot would destroy the snapshot needed for restore.', 'The host slot is now an input to DMA. Keep it unchanged until H2D completion is observed.', 'The DMA dependency is satisfied. Order the framework consumer after it; keep destination storage alive for that consumer.' ];
+      say(notes[stage], 'good');
+    }));
+
+    root.querySelectorAll('[data-probe]').forEach(button => button.addEventListener('click', () => {
+      const resource = button.dataset.probe;
+      const safe = probeSafety(stage, resource);
+      let explanation;
+      if (resource === 'source') explanation = safe ? 'Source reuse is safe for this snapshot: D2H has completed and H2D reads the independent host copy.' : 'Preserve the source until its producer and the scheduled D2H read have completed. Reusing it now would race or change the intended snapshot.';
+      else if (resource === 'host') explanation = stage < 2 ? 'The host slot has no live snapshot yet. Writing it now is safe if that write finishes before D2H begins; D2H will overwrite it.' : stage === 2 ? 'D2H is writing the host slot. Your write could race with DMA and corrupt the snapshot.' : stage === 3 ? 'DMA is idle, but this slot holds the snapshot for the planned H2D. Overwriting it would destroy data still needed by the next step.' : stage === 4 ? 'H2D is reading this host slot. Overwriting it could make the destination receive a mix of old and new bytes.' : 'H2D has completed, so this transfer no longer needs the host bytes. The pool may reuse the slot.';
+      else explanation = safe ? 'The H2D completion dependency is satisfied. An ordered consumer can read restored destination bytes.' : 'The restore has not completed. A consumer could read old, uninitialized, or partially restored destination bytes.';
+      say((safe ? 'Safe in this model. ' : 'Unsafe for this transfer. ') + explanation, safe ? 'good' : 'warn');
+    }));
+    byId('demo-reset').addEventListener('click', () => { stage = 0; render(); say('Transfer reset. Try submitting H2D early, or follow the highlighted next event.'); });
+    render();
+  }
+
+  function initCost() {
+    if (!byId('demo-cost')) return;
+    function time(us) { return us >= 1000 ? formatNumber(us / 1000) + ' ms' : formatNumber(us) + ' μs'; }
+    function update() {
+      const bytes = Number(byId('demo-payload').value);
+      const chunks = Number(byId('demo-chunks').value);
+      const overhead = Number(byId('demo-overhead').value);
+      const bandwidth = Number(byId('demo-bandwidth').value);
+      const cost = transferCost(bytes, bandwidth, overhead, chunks);
+      byId('demo-overhead-value').textContent = overhead + ' μs';
+      byId('demo-bandwidth-value').textContent = bandwidth + ' GB/s';
+      byId('demo-one-time').textContent = time(cost.oneUs);
+      byId('demo-many-time').textContent = time(cost.manyUs);
+      byId('demo-effective').textContent = formatNumber(cost.effectiveGBs) + ' GB/s';
+      byId('demo-slowdown').textContent = formatNumber(cost.slowdown) + '× the one-submission latency';
+      byId('demo-one-data').style.width = cost.dataUs / cost.manyUs * 100 + '%';
+      byId('demo-many-data').style.width = cost.dataUs / cost.manyUs * 100 + '%';
+      byId('demo-one-setup').style.width = overhead / cost.manyUs * 100 + '%';
+      byId('demo-many-setup').style.width = chunks * overhead / cost.manyUs * 100 + '%';
+      const chunkBytes = bytes / chunks;
+      const chunkLabel = chunkBytes < 1024 ? formatNumber(chunkBytes) + ' bytes' : formatNumber(chunkBytes / 1024) + ' KiB';
+      byId('demo-cost-readout').textContent = 'Each chunk carries ' + chunkLabel + '. Payload movement takes ' + time(cost.dataUs) + ' in either model. The ' + formatNumber(chunks) + ' submissions add ' + time(chunks * overhead) + ' of overhead: ' + formatNumber(cost.overheadShare * 100) + '% of their total time.';
+    }
+    ['demo-payload', 'demo-chunks', 'demo-overhead', 'demo-bandwidth'].forEach(id => byId(id).addEventListener('input', update));
+    update();
+  }
+
+  function init() { initLayout(); initOrdering(); initCost(); }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+  else init();
+})();
+</script></body></html>

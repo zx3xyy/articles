@@ -2,6 +2,8 @@
 
 技术文章合集，每篇一个目录，`index.html` 即文章页。
 
+- [TPU Sync 数据面学习手册](https://zx3xyy.github.io/articles/tpu-sync/) — 面向 NVIDIA 工程师的 TorchTPU / TPU7x 英文学习路径，含 XLA / PJRT 基础、源码导读和 4 个交互演示。
+
 - [DFlash2 讲解](https://zx3xyy.github.io/articles/dflash2/) — speculative decoding：一次 forward 猜完一整个 token block
 
 - [Kernel Skills 学习手册](https://zx3xyy.github.io/articles/kernel-skills/) — 学习路径与 18 篇原文笔记，支持浅色 / 深色阅读。来源：[ZJLi2013/awesome-kernel-skills](https://github.com/ZJLi2013/awesome-kernel-skills)。
