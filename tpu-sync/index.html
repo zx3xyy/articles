@@ -835,7 +835,7 @@ submit H2D ─────────────→ H2D completes
 <li><strong>“A CPU PJRT mock test proves v7x behavior.”</strong> It verifies some plumbing. Real layouts, DMA registration, and hardware overlap require device validation.</li>
 </ul>
 <p>For optional CPU-side study, inspect the <code>tiling_utils_test</code>, <code>pool_layout_test</code>, and <code>torch_raw_transfer_test</code> Bazel targets. The last uses mocked Torch buffer registration with CPU PJRT. These are useful learning exercises, with a different evidentiary scope from the real TorchTPU transfer tests.</p>
-</section><footer class="page-footer"><p>Source-grounded educational handbook · September 19, 2026. Repository citations pin <a href="https://github.com/google/tpu-sync/tree/7156a21fb06f7495545af0eca355b1b8ba580442">7156a21fb06f7495545af0eca355b1b8ba580442</a>. Hardware facts use primary documentation. The browser demos are deterministic teaching models; they do not access TPU hardware. Python API examples were checked against the source and parsed for syntax, but the v7x hardware lab has not been executed for this guide.</p><p>The page has no external scripts, styles, fonts, or network requests. Source links open online documentation when you choose them.</p><button class="btn-quiet" id="print-guide" type="button">Print / save as PDF</button></footer></main><script>(() => {
+</section><footer class="page-footer"><p>Source-grounded educational handbook · September 19, 2026. Repository citations pin <a href="https://github.com/google/tpu-sync/tree/7156a21fb06f7495545af0eca355b1b8ba580442">7156a21fb06f7495545af0eca355b1b8ba580442</a>. Hardware facts use primary documentation. The browser demos are deterministic teaching models; they do not access TPU hardware. Python API examples were checked against the source and parsed for syntax, but the v7x hardware lab has not been executed for this guide.</p><p>The reading content and teaching demos work offline. The hosted article uses Cloudflare Web Analytics for aggregate page-view and performance statistics; the tracker respects Do Not Track and Global Privacy Control. Source links open online documentation when you choose them.</p><button class="btn-quiet" id="print-guide" type="button">Print / save as PDF</button></footer></main><script>(() => {
   'use strict';
   const repo = 'https://github.com/google/tpu-sync/blob/7156a21fb06f7495545af0eca355b1b8ba580442/';
   const routes = {
@@ -1126,4 +1126,5 @@ submit H2D ─────────────→ H2D completes
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
   else init();
 })();
-</script></body></html>
+</script><script defer src="../assets/analytics.js"></script>
+</body></html>

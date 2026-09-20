@@ -128,6 +128,7 @@ ${pager}
 <footer class="page-footer" lang="zh-CN">来源：<a href="${repo}">Awesome Kernel Skills</a> · <a href="${repo}/commit/${source.sha}">版本 ${source.sha.slice(0,7)}</a> · <a href="../">文章首页</a></footer>
 </main>
 </div>
+<script defer src="../assets/analytics.js"></script>
 </body>
 </html>
 `;
