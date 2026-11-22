@@ -2,7 +2,7 @@
 
 技术文章合集，每篇一个目录，`index.html` 即文章页。
 
-- [Inkling & DeepSeek-V4-Flash on 2× RTX PRO 6000](https://zx3xyy.github.io/articles/rtx-pro-6000-llm-inference/) — SM120 homelab inference report: parallelism (TP2/PP2/EP2), DSpark speculative decoding, coding evals, assistant checks.
+- [Two RTX PRO 6000s, four reasoning models](https://zx3xyy.github.io/articles/rtx-pro-6000-llm-inference/) — charts-first report with TL;DR: DeepSeek-V4.1-Flash-1017 (2-bit), Qwen3.6, Inkling-2-Mini; parallelism, speculative decoding and coding accuracy on a two-GPU homelab.
 
 - [TPU Sync 数据面学习手册](https://zx3xyy.github.io/articles/tpu-sync/) — 面向 NVIDIA 工程师的 TorchTPU / TPU7x 英文学习路径，含 XLA / PJRT 基础、源码导读和 4 个交互演示。
 

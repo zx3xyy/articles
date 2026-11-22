@@ -1,18 +1,139 @@
-<!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Inkling and DeepSeek-V4-Flash on 2x RTX PRO 6000</title>
-<style>
-:root{--bg:#fff;--fg:#1c1c1e;--muted:#5b5f66;--line:#e3e5e8;--accent:#0b5fff;--code:#f4f5f7}
-@media (prefers-color-scheme: dark){:root{--bg:#101114;--fg:#e8e9ec;--muted:#9aa0a8;--line:#2a2d33;--accent:#6ea0ff;--code:#1a1c21}}
-body{background:var(--bg);color:var(--fg);font:16px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;margin:0}
-main{max-width:860px;margin:0 auto;padding:32px 16px 64px}
-h1{font-size:1.7rem;line-height:1.25} h2{margin-top:2.2rem;padding-bottom:.3rem;border-bottom:1px solid var(--line)} h3{margin-top:1.6rem}
-a{color:var(--accent)} code{background:var(--code);padding:.1em .35em;border-radius:4px;font-size:.9em}
-pre{background:var(--code);padding:12px;border-radius:6px;overflow-x:auto} pre code{padding:0;background:none}
-table{border-collapse:collapse;display:block;overflow-x:auto;max-width:100%;margin:1rem 0}
-th,td{border:1px solid var(--line);padding:6px 10px;text-align:left;vertical-align:top} th{background:var(--code)}
-</style></head><body><main>
-<h1>Running Inkling-2-Mini and DeepSeek-V4-Flash on 2× RTX PRO 6000 (SM120): coding + personal-assistant guide</h1>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Two RTX PRO 6000s, four reasoning models</title><meta name="description" content="Speed, parallelism and coding accuracy of DeepSeek-V4.1-Flash-1017, Inkling-2-Mini and Qwen3.6 on two RTX PRO 6000 GPUs."><style>
+:root{color-scheme:light;--plane:#f9f9f7;--surface:#fcfcfb;--ink:#0b0b0b;--ink2:#52514e;--muted:#898781;--grid:#e1e0d9;--axis:#c3c2b7;--c1:#2a78d6;--c2:#eb6834;--c3:#1baf7a;--ring:rgba(11,11,11,0.10);--good:#006300}
+@media (prefers-color-scheme: dark){:root:where(:not([data-theme="light"])){color-scheme:dark;--plane:#0d0d0d;--surface:#1a1a19;--ink:#f0efec;--ink2:#c3c2b7;--muted:#898781;--grid:#2c2c2a;--axis:#383835;--c1:#3987e5;--c2:#d95926;--c3:#199e70;--ring:rgba(255,255,255,0.10);--good:#0ca30c}}
+:root[data-theme="dark"]{color-scheme:dark;--plane:#0d0d0d;--surface:#1a1a19;--ink:#f0efec;--ink2:#c3c2b7;--muted:#898781;--grid:#2c2c2a;--axis:#383835;--c1:#3987e5;--c2:#d95926;--c3:#199e70;--ring:rgba(255,255,255,0.10);--good:#0ca30c}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--plane);color:var(--ink);font:16px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif}
+main{max-width:940px;margin:0 auto;padding:24px 16px 72px}
+a{color:var(--c1)}
+h1{font-size:clamp(1.6rem,4.2vw,2.2rem);line-height:1.2;margin:.2rem 0 .6rem}
+h2{font-size:1.35rem;margin:2.6rem 0 .3rem} h3{font-size:1.05rem;margin:1.4rem 0 .3rem}
+.eyebrow{color:var(--ink2);font-size:.85rem;margin:0}
+.sub{color:var(--ink2);margin:.2rem 0 1rem;max-width:68ch}
+.topbar{display:flex;justify-content:space-between;align-items:center;gap:12px}
+.topbar a,.topbar button{font:inherit;font-size:.85rem;color:var(--ink2);background:none;border:1px solid var(--ring);border-radius:8px;padding:4px 10px;cursor:pointer;text-decoration:none}
+.card{background:var(--surface);border:1px solid var(--ring);border-radius:12px;padding:16px 18px}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin:12px 0 20px}
+.kpi .v{font-size:2rem;font-weight:650;letter-spacing:-.01em;line-height:1.1}
+.kpi .l{color:var(--ink2);font-size:.88rem;margin-top:4px}
+.kpi .d{color:var(--muted);font-size:.8rem;margin-top:2px}
+.picks{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;margin:12px 0 4px}
+.pick{border-top:4px solid var(--k);padding-top:12px}
+.pick .job{color:var(--ink2);font-size:.8rem;text-transform:uppercase;letter-spacing:.04em}
+.pick h3{margin:.15rem 0 .35rem;font-size:1.05rem}
+.pick p{margin:0;font-size:.9rem;color:var(--ink2)}
+.pick code{font-size:.78rem}
+ul.tldr{padding-left:1.15rem;margin:.4rem 0} ul.tldr li{margin:.45rem 0}
+figure.chart{margin:14px 0 18px}
+figure.chart>.card{padding:16px 18px 12px}
+.chart h3{margin:0 0 2px;font-size:1.02rem}
+.chart .cap{color:var(--ink2);font-size:.88rem;margin:2px 0 12px}
+.chart .note{color:var(--muted);font-size:.8rem;margin:10px 0 0}
+.legend{display:flex;flex-wrap:wrap;gap:6px 16px;margin:4px 0 12px;font-size:.82rem;color:var(--ink2)}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px;vertical-align:-1px;background:var(--k)}
+.legend i.light{opacity:.55}
+.legend i.ring{background:none;border:2px solid var(--k)}
+.hbar .row{display:grid;grid-template-columns:minmax(120px,32%) 1fr;gap:10px;align-items:center;padding:3px 0}
+.hbar .lab{font-size:.88rem;line-height:1.25} .hbar .lab span{display:block;color:var(--muted);font-size:.76rem}
+.hbar .plot{position:relative;height:30px;margin-right:56px;background-image:linear-gradient(to right,var(--grid) 1px,transparent 1px);background-size:var(--tick) 100%;border-right:1px solid var(--grid)}
+.hbar .bar{position:absolute;left:0;top:7px;height:16px;width:var(--w);background:var(--c);border-radius:0 4px 4px 0;outline-offset:2px}
+.hbar .bar.light{opacity:.55}
+.hbar .ci{position:absolute;top:14px;height:2px;left:var(--lo);width:calc(var(--hi) - var(--lo));background:var(--ink2);opacity:.75}
+.hbar .ci:before,.hbar .ci:after{content:"";position:absolute;top:-4px;width:2px;height:10px;background:var(--ink2);opacity:.9}
+.hbar .ci:before{left:0} .hbar .ci:after{right:0}
+.hbar .val{position:absolute;top:4px;left:calc(var(--r) + 8px);font-size:.84rem;font-weight:600;white-space:nowrap}
+.hbar .axis{display:grid;grid-template-columns:minmax(120px,32%) 1fr;gap:10px;margin-top:2px}
+.hbar .ticks{position:relative;height:18px;margin-right:56px;font-size:.74rem;color:var(--muted)}
+.hbar .ticks span{position:absolute;transform:translateX(-50%)} .hbar .ticks span:first-child{transform:none} .hbar .ticks span:last-child{transform:translateX(-100%)}
+.hbar .bar:hover,.hbar .bar:focus-visible{filter:brightness(1.12);outline:2px solid var(--ink)}
+@media (max-width:560px){.hbar .row,.hbar .axis{grid-template-columns:1fr;gap:2px} .hbar .axis>div:first-child{display:none}}
+.dumb .row{display:grid;grid-template-columns:minmax(120px,26%) 1fr;gap:10px;align-items:center;padding:6px 0 10px}
+.dumb .lab{font-size:.88rem} .dumb .lab span{display:block;color:var(--muted);font-size:.76rem}
+.dumb .plot{position:relative;height:46px;margin-right:30px;background-image:linear-gradient(to right,var(--grid) 1px,transparent 1px);background-size:20% 100%;border-right:1px solid var(--grid)}
+.dumb .link{position:absolute;top:13px;height:2px;background:var(--c);opacity:.55;left:var(--a);width:calc(var(--b) - var(--a))}
+.dumb .dot{position:absolute;top:7px;width:14px;height:14px;margin-left:-7px;border-radius:50%;background:var(--c);box-shadow:0 0 0 2px var(--surface);outline-offset:3px}
+.dumb .dot.before{opacity:.5}
+.dumb .dv{position:absolute;top:26px;transform:translateX(-50%);font-size:.78rem;white-space:nowrap}
+.dumb .dv b{font-weight:650}
+.dumb .axis{display:grid;grid-template-columns:minmax(120px,26%) 1fr;gap:10px}
+.dumb .ticks{position:relative;height:18px;margin-right:30px;font-size:.74rem;color:var(--muted)}
+.dumb .ticks span{position:absolute;transform:translateX(-50%)} .dumb .ticks span:first-child{transform:none} .dumb .ticks span:last-child{transform:translateX(-100%)}
+@media (max-width:560px){.dumb .row,.dumb .axis{grid-template-columns:1fr;gap:2px} .dumb .axis>div:first-child{display:none}}
+.multi{display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:12px}
+.multi .panel{border:1px solid var(--ring);border-radius:10px;padding:10px 12px 6px}
+.multi h4{margin:0 0 4px;font-size:.88rem} .multi h4 span{display:block;color:var(--muted);font-size:.76rem;font-weight:400}
+.multi .hbar .row,.multi .hbar .axis{grid-template-columns:minmax(72px,34%) 1fr} .multi .hbar .plot,.multi .hbar .ticks{margin-right:44px}
+.svgwrap svg{display:block;width:100%;height:auto} .svgwrap.mob{display:none}
+@media (max-width:560px){.svgwrap.desk{display:none} .svgwrap.mob{display:block}}
+svg text{fill:var(--ink2);font:13px system-ui,-apple-system,"Segoe UI",sans-serif}
+svg .tl{fill:var(--muted);font-size:12px} svg .lab{fill:var(--ink)} svg .strong{fill:var(--ink);font-weight:600}
+svg .gl{stroke:var(--grid);stroke-width:1} svg .ax{stroke:var(--axis);stroke-width:1}
+svg .pt{stroke:var(--surface);stroke-width:2} svg .ln{fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+svg .hit{fill:transparent;cursor:default} svg .hit:focus-visible{outline:2px solid var(--ink)}
+@media (max-width:560px){.multi .hbar .axis>div:first-child{display:block}}
+details.tview{margin-top:10px;font-size:.85rem} details.tview summary{cursor:pointer;color:var(--ink2)}
+table{border-collapse:collapse;width:100%;font-size:.85rem;margin:8px 0}
+th,td{border-bottom:1px solid var(--grid);padding:5px 8px;text-align:left;vertical-align:top}
+th{color:var(--ink2);font-weight:600} td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
+.tablewrap{overflow-x:auto}
+pre{background:var(--surface);border:1px solid var(--ring);border-radius:8px;padding:10px 12px;overflow-x:auto;font-size:.8rem;line-height:1.45}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.88em}
+:not(pre)>code{background:var(--surface);border:1px solid var(--ring);border-radius:4px;padding:0 4px}
+.callout{border-left:4px solid var(--c1);padding:2px 0 2px 12px;color:var(--ink2);margin:12px 0}
+#tip{position:fixed;z-index:20;pointer-events:none;background:var(--surface);color:var(--ink);border:1px solid var(--ring);box-shadow:0 4px 18px rgba(0,0,0,.18);border-radius:8px;padding:6px 10px;font-size:.82rem;max-width:280px}
+#tip strong{display:block;font-size:.95rem} #tip span{color:var(--ink2)}
+details.appendix>summary{cursor:pointer;font-size:1.1rem;font-weight:600;margin:2.4rem 0 .6rem}
+.appendix .md h1{font-size:1.4rem} .appendix .md h2{font-size:1.15rem;margin-top:2rem}
+footer{margin-top:3rem;color:var(--muted);font-size:.82rem}
+</style></head><body><main><div class="topbar"><a href="../">← all articles</a><button id="theme" type="button" aria-label="Toggle light or dark theme">Theme</button></div><p class="eyebrow">Homelab · measured 2026-11-21 to 2026-11-22</p><h1>Two RTX PRO 6000s, four reasoning models: what actually works for coding</h1><p class="sub">DeepSeek-V4.1-Flash-1017, Inkling-2-Mini and Qwen3.6 on two 96 GB Blackwell cards linked by PCIe only. Speed, parallelism, speculative decoding and coding accuracy, measured on one machine.</p><section id="tldr"><h2 style="margin-top:1.4rem">TL;DR</h2><div class="kpis"><div class="card kpi"><div class="v">82.5%</div><div class="l">DeepSeek-V4.1-Flash-1017 at 2-bit on hard LiveCodeBench problems</div><div class="d">n = 40 · max effort · best of the four models</div></div><div class="card kpi"><div class="v">451 tok/s</div><div class="l">Inkling-2-Mini, both GPUs, one user</div><div class="d">with DSpark speculative decoding</div></div><div class="card kpi"><div class="v">2–3×</div><div class="l">speed-up from speculative decoding at batch 1</div><div class="d">lossless; Inkling 2.0–2.2×, DeepSeek 2.6–2.9×</div></div><div class="card kpi"><div class="v">+20 pts</div><div class="l">from vendor sampling, max effort and a 100K+ token budget</div><div class="d">same models, hard problems, vs greedy and a 20K cap</div></div></div><h3>Which model for which job</h3><div class="picks"><div class="card pick" style="--k:var(--c3)"><div class="job">Everyday and assistant</div><h3>Inkling-2-Mini on both GPUs</h3><p>~451 tok/s, 15/15 tool calls at 0.24 s, an 8K-token prompt read in 0.4 s. Use <code>reasoning_effort: low</code> for quick coding.</p></div><div class="card pick" style="--k:var(--c1)"><div class="job">Hardest problems, can wait</div><h3>DeepSeek-1017, 2-bit GGUF</h3><p>82.5% on hard LiveCodeBench at ~4 min per problem. Both GPUs, llama.cpp, <code>max</code> effort, temperature 1.0, 100K+ tokens.</p></div><div class="card pick" style="--k:var(--c2)"><div class="job">One strong coder per GPU</div><h3>Qwen3.6-27B FP8 + MTP</h3><p>72.5% hard-problem pass rate, never truncated, ~125 tok/s, 29 GB. Thinks very long, so not for quick questions.</p></div><div class="card pick" style="--k:var(--c1)"><div class="job">Two models at once</div><h3>DeepSeek Coder (GPU 0) + Inkling (GPU 1)</h3><p>128 tok/s and 307 tok/s side by side; Inkling measured 309 tok/s while the Coder was busy, no interference.</p></div></div><h3>What I learned</h3><ul class="tldr"><li><b>Hard coding quality:</b> DeepSeek-V4.1-Flash-1017 (2-bit) &gt; Qwen3.6-27B &gt; Inkling &gt; Qwen3.6-35B-A3B on the 40 hard LiveCodeBench v6 problems. DeepSeek beats Inkling 9–1 (p = 0.02) and the 35B Qwen 9–0 on problems only one solved; against Qwen3.6-27B it is 5–1 (p = 0.22, suggestive only).</li><li><b>Split the cards with tensor parallelism.</b> TP2 beats pipeline parallel by ~40% on DeepSeek even with no NVLink (the all-reduce is ~1 ms of a ~10 ms step), and expert parallelism changes nothing at one to four users.</li><li><b>Speculative decoding is the biggest lever for one user</b> (2–3× at batch 1) and it does not change accuracy.</li><li><b>Evaluation settings swing results by ~20 points.</b> Greedy decoding with a 20K-token cap understated DeepSeek (62.5% → 82.5%) and Inkling (40% → 62.5%). Use each vendor's recommended sampling and give reasoning models 100K+ tokens.</li><li><b>V4.1-Flash-1017 is not small:</b> 763B parameters (552B backbone + 196B Engram memory). The official NVFP4 build is 429 GB and cannot fit in 192 GB, so it runs as a 2-bit GGUF (138 GB backbone on the GPUs, 110 GB Engram on SSD) in llama.cpp, not SGLang.</li><li><b>Setup gotchas on RTX PRO 6000 (SM120):</b> DeepSeek on SGLang needs <code>--moe-runner-backend flashinfer_cutlass</code> plus a one-file patch for the draft head; the default kernels only exist for B200-class GPUs.</li></ul></section><section><h2>1 · Hard coding problems</h2><figure class="chart"><div class="card"><h3>Hard coding problems: DeepSeek-1017 (2-bit) leads</h3><p class="cap">LiveCodeBench v6, 40 hard problems, one sample per problem, each model on its own best-case settings. Bars: pass@1; whiskers: 95% bootstrap interval.</p><div class="legend"><span><i class="" style="--k:var(--c1)"></i>DeepSeek</span><span><i class="" style="--k:var(--c2)"></i>Qwen</span><span><i class="" style="--k:var(--c3)"></i>Inkling</span></div><div class="hbar" role="group" aria-label="Pass rate on 40 hard LiveCodeBench problems"><div class="row"><div class="lab">DeepSeek-V4.1-1017, 2-bit<span>both GPUs · llama.cpp · 150K budget</span></div><div class="plot" style="--tick:25.0000%"><div class="bar" tabindex="0" style="--w:82.50%;--c:var(--c1)" data-tip="82.5% (95% CI 70.0–92.5)|DeepSeek-V4.1-1017, 2-bit: 33/40 solved, 1 truncated, 24.6K tokens/problem" role="img" aria-label="DeepSeek-V4.1-1017, 2-bit: 82.5%"></div><div class="ci" style="--lo:70.00%;--hi:92.50%"></div><span class="val" style="--r:92.50%">82.5%</span></div></div><div class="row"><div class="lab">Qwen3.6-27B FP8<span>one GPU · SGLang + MTP</span></div><div class="plot" style="--tick:25.0000%"><div class="bar" tabindex="0" style="--w:72.50%;--c:var(--c2)" data-tip="72.5% (95% CI 57.5–85.0)|Qwen3.6-27B FP8: 29/40 solved, 0 truncated, 41.1K tokens/problem" role="img" aria-label="Qwen3.6-27B FP8: 72.5%"></div><div class="ci" style="--lo:57.50%;--hi:85.00%"></div><span class="val" style="--r:85.00%">72.5%</span></div></div><div class="row"><div class="lab">Inkling-2-Mini<span>one GPU · SGLang + DSpark</span></div><div class="plot" style="--tick:25.0000%"><div class="bar" tabindex="0" style="--w:62.50%;--c:var(--c3)" data-tip="62.5% (95% CI 47.5–77.5)|Inkling-2-Mini: 25/40 solved, 3 truncated, 37.4K tokens/problem" role="img" aria-label="Inkling-2-Mini: 62.5%"></div><div class="ci" style="--lo:47.50%;--hi:77.50%"></div><span class="val" style="--r:77.50%">62.5%</span></div></div><div class="row"><div class="lab">Qwen3.6-35B-A3B FP8<span>one GPU · SGLang + MTP</span></div><div class="plot" style="--tick:25.0000%"><div class="bar" tabindex="0" style="--w:60.00%;--c:var(--c2)" data-tip="60.0% (95% CI 45.0–75.0)|Qwen3.6-35B-A3B FP8: 24/40 solved, 2 truncated, 45.0K tokens/problem" role="img" aria-label="Qwen3.6-35B-A3B FP8: 60.0%"></div><div class="ci" style="--lo:45.00%;--hi:75.00%"></div><span class="val" style="--r:75.00%">60.0%</span></div></div><div class="axis"><div></div><div class="ticks"><span style="left:0.00%">0%</span><span style="left:25.00%">25%</span><span style="left:50.00%">50%</span><span style="left:75.00%">75%</span><span style="left:100.00%">100%</span></div></div></div><details class="tview"><summary>View as table</summary><div class="tablewrap"><table><thead><tr><th class="">Model</th><th class="n">Pass@1</th><th class="n">95% CI</th><th class="n">Truncated</th><th class="n">Tokens / problem</th></tr></thead><tbody><tr><td class="">DeepSeek-V4.1-1017, 2-bit</td><td class="n">82.5%</td><td class="n">70.0–92.5%</td><td class="n">1</td><td class="n">24.6K</td></tr><tr><td class="">Qwen3.6-27B FP8</td><td class="n">72.5%</td><td class="n">57.5–85.0%</td><td class="n">0</td><td class="n">41.1K</td></tr><tr><td class="">Inkling-2-Mini</td><td class="n">62.5%</td><td class="n">47.5–77.5%</td><td class="n">3</td><td class="n">37.4K</td></tr><tr><td class="">Qwen3.6-35B-A3B FP8</td><td class="n">60.0%</td><td class="n">45.0–75.0%</td><td class="n">2</td><td class="n">45.0K</td></tr></tbody></table></div></details><p class=note>Settings: DeepSeek T 1.0, top_p 1.0, effort max, 150K tokens · Inkling T 1.0, effort max, 100K · Qwen T 0.6, top_p 0.95, top_k 20, thinking on, 100K. Paired tests (problems only one model solved): DeepSeek–Inkling 9–1, DeepSeek–Qwen35B 9–0, DeepSeek–Qwen27B 5–1, Qwen27B–Inkling 5–1. 34 of 40 problems are solved by at least one model, 20 by all four, 6 by none.</p></div></figure><figure class="chart"><div class="card"><h3>The evaluation settings moved scores by about 20 points</h3><p class="cap">The same models on the same problems, first under the cheap default (greedy, low effort, 20K cap) and then under the vendors' recommended settings.</p><div class="dumb"><div class="legend"><span><i class="light" style="--k:var(--ink2)"></i>greedy decoding, low effort, 20K-token cap</span><span><i class="" style="--k:var(--ink2)"></i>vendor sampling, max effort, 100K+ tokens</span></div><div class="row"><div class="lab">DeepSeek-1017 2-bit<span>same 40 hard problems</span></div><div class="plot" style="--c:var(--c1)"><div class="link" style="--a:62.5%;--b:82.5%"></div><div class="dot before" tabindex="0" style="left:62.5%" data-tip="62.5%|greedy, low effort, 20K cap" role="img" aria-label="62.5%|greedy, low effort, 20K cap"></div><div class="dot" tabindex="0" style="left:82.5%" data-tip="82.5%|temperature 1.0, max effort, 150K" role="img" aria-label="82.5%|temperature 1.0, max effort, 150K"></div><span class="dv" style="left:62.5%">62.5%</span><span class="dv" style="left:82.5%"><b>82.5%</b></span></div></div><div class="row"><div class="lab">Inkling-2-Mini<span>same 40 hard problems</span></div><div class="plot" style="--c:var(--c3)"><div class="link" style="--a:40.0%;--b:62.5%"></div><div class="dot before" tabindex="0" style="left:40.0%" data-tip="40.0%|greedy, low effort, 20K cap" role="img" aria-label="40.0%|greedy, low effort, 20K cap"></div><div class="dot" tabindex="0" style="left:62.5%" data-tip="62.5%|temperature 1.0, max effort, 100K" role="img" aria-label="62.5%|temperature 1.0, max effort, 100K"></div><span class="dv" style="left:40.0%">40.0%</span><span class="dv" style="left:62.5%"><b>62.5%</b></span></div></div><div class="axis"><div></div><div class="ticks"><span style="left:0%">0%</span><span style="left:20%">20%</span><span style="left:40%">40%</span><span style="left:60%">60%</span><span style="left:80%">80%</span><span style="left:100%">100%</span></div></div></div><details class="tview"><summary>View as table</summary><div class="tablewrap"><table><thead><tr><th class="">Model</th><th class="n">Greedy / low / 20K cap</th><th class="n">Sampling / max / 100K+</th></tr></thead><tbody><tr><td class="">DeepSeek-1017 2-bit</td><td class="n">62.5%</td><td class="n">82.5%</td></tr><tr><td class="">Inkling-2-Mini</td><td class="n">40.0%</td><td class="n">62.5%</td></tr></tbody></table></div></details><p class=note>Effort, sampling and budget changed together, so this does not say which one matters most. For Inkling, an intermediate run (greedy, low effort, 60K cap) scored 55.0% and greedy medium effort scored 37.5%, so effort alone is not the lever; sampling plus budget is.</p></div></figure><figure class="chart"><div class="card"><h3>DeepSeek also needs the fewest tokens per problem</h3><p class="cap">Accuracy against thinking length on the 40 hard problems. DeepSeek's median is 15K tokens per problem; the others spend 37–45K on average.</p><div class="legend"><span><i class="" style="--k:var(--c1)"></i>DeepSeek</span><span><i class="" style="--k:var(--c2)"></i>Qwen (circle 27B, diamond 35B-A3B)</span><span><i class="" style="--k:var(--c3)"></i>Inkling</span></div><div class="svgwrap desk"><svg viewBox="0 0 560 360" role="img" aria-label="Pass rate versus tokens per problem"><line class="gl" x1="56" x2="540" y1="310.0" y2="310.0"/><text class="tl" x="48" y="314.0" text-anchor="end">50%</text><line class="gl" x1="56" x2="540" y1="236.5" y2="236.5"/><text class="tl" x="48" y="240.5" text-anchor="end">60%</text><line class="gl" x1="56" x2="540" y1="163.0" y2="163.0"/><text class="tl" x="48" y="167.0" text-anchor="end">70%</text><line class="gl" x1="56" x2="540" y1="89.5" y2="89.5"/><text class="tl" x="48" y="93.5" text-anchor="end">80%</text><line class="gl" x1="56" x2="540" y1="16.0" y2="16.0"/><text class="tl" x="48" y="20.0" text-anchor="end">90%</text><text class="tl" x="56.0" y="328" text-anchor="middle">0K</text><text class="tl" x="152.8" y="328" text-anchor="middle">10K</text><text class="tl" x="249.6" y="328" text-anchor="middle">20K</text><text class="tl" x="346.4" y="328" text-anchor="middle">30K</text><text class="tl" x="443.2" y="328" text-anchor="middle">40K</text><text class="tl" x="540.0" y="328" text-anchor="middle">50K</text><line class="ax" x1="56" x2="540" y1="310" y2="310"/><line class="ax" x1="56" x2="56" y1="16" y2="310"/><text x="298.0" y="352" text-anchor="middle">mean thinking + answer tokens per problem</text><text class="tl" x="64" y="30">↖ higher accuracy with fewer tokens is better</text><circle class="pt" cx="294.1" cy="71.1" r="7" style="fill:var(--c1)"/><circle class="hit" tabindex="0" role="img" aria-label="DeepSeek-1017 2-bit: 82.5% at 24.6K tokens" cx="294.1" cy="71.1" r="16" data-tip="82.5% at 24.6K tokens|DeepSeek-1017 2-bit"/><text class="strong" x="307.1" y="75.1" text-anchor="start">DeepSeek-1017 2-bit</text><circle class="pt" cx="453.8" cy="144.6" r="7" style="fill:var(--c2)"/><circle class="hit" tabindex="0" role="img" aria-label="Qwen3.6-27B: 72.5% at 41.1K tokens" cx="453.8" cy="144.6" r="16" data-tip="72.5% at 41.1K tokens|Qwen3.6-27B"/><text class="strong" x="440.8" y="148.6" text-anchor="end">Qwen3.6-27B</text><circle class="pt" cx="418.0" cy="218.1" r="7" style="fill:var(--c3)"/><circle class="hit" tabindex="0" role="img" aria-label="Inkling-2-Mini: 62.5% at 37.4K tokens" cx="418.0" cy="218.1" r="16" data-tip="62.5% at 37.4K tokens|Inkling-2-Mini"/><text class="strong" x="405.0" y="222.1" text-anchor="end">Inkling-2-Mini</text><path class="pt" d="M491.6 228.5 L499.6 236.5 L491.6 244.5 L483.6 236.5 Z" style="fill:var(--c2)"/><circle class="hit" tabindex="0" role="img" aria-label="Qwen3.6-35B-A3B: 60.0% at 45.0K tokens" cx="491.6" cy="236.5" r="16" data-tip="60.0% at 45.0K tokens|Qwen3.6-35B-A3B"/><text class="strong" x="478.6" y="240.5" text-anchor="end">Qwen3.6-35B-A3B</text></svg></div><div class="svgwrap mob"><svg viewBox="0 0 380 350" role="img" aria-label="Pass rate versus tokens per problem"><line class="gl" x1="46" x2="366" y1="300.0" y2="300.0"/><text class="tl" x="38" y="304.0" text-anchor="end">50%</text><line class="gl" x1="46" x2="366" y1="229.0" y2="229.0"/><text class="tl" x="38" y="233.0" text-anchor="end">60%</text><line class="gl" x1="46" x2="366" y1="158.0" y2="158.0"/><text class="tl" x="38" y="162.0" text-anchor="end">70%</text><line class="gl" x1="46" x2="366" y1="87.0" y2="87.0"/><text class="tl" x="38" y="91.0" text-anchor="end">80%</text><line class="gl" x1="46" x2="366" y1="16.0" y2="16.0"/><text class="tl" x="38" y="20.0" text-anchor="end">90%</text><text class="tl" x="46.0" y="318" text-anchor="middle">0K</text><text class="tl" x="110.0" y="318" text-anchor="middle">10K</text><text class="tl" x="174.0" y="318" text-anchor="middle">20K</text><text class="tl" x="238.0" y="318" text-anchor="middle">30K</text><text class="tl" x="302.0" y="318" text-anchor="middle">40K</text><text class="tl" x="366.0" y="318" text-anchor="middle">50K</text><line class="ax" x1="46" x2="366" y1="300" y2="300"/><line class="ax" x1="46" x2="46" y1="16" y2="300"/><text x="206.0" y="342" text-anchor="middle">mean thinking + answer tokens per problem</text><text class="tl" x="54" y="30">↖ higher accuracy with fewer tokens is better</text><circle class="pt" cx="203.4" cy="69.2" r="7" style="fill:var(--c1)"/><circle class="hit" tabindex="0" role="img" aria-label="DeepSeek-1017 2-bit: 82.5% at 24.6K tokens" cx="203.4" cy="69.2" r="16" data-tip="82.5% at 24.6K tokens|DeepSeek-1017 2-bit"/><text class="strong" x="216.4" y="73.2" text-anchor="start">DeepSeek-1017 2-bit</text><circle class="pt" cx="309.0" cy="140.2" r="7" style="fill:var(--c2)"/><circle class="hit" tabindex="0" role="img" aria-label="Qwen3.6-27B: 72.5% at 41.1K tokens" cx="309.0" cy="140.2" r="16" data-tip="72.5% at 41.1K tokens|Qwen3.6-27B"/><text class="strong" x="296.0" y="144.2" text-anchor="end">Qwen3.6-27B</text><circle class="pt" cx="285.4" cy="211.2" r="7" style="fill:var(--c3)"/><circle class="hit" tabindex="0" role="img" aria-label="Inkling-2-Mini: 62.5% at 37.4K tokens" cx="285.4" cy="211.2" r="16" data-tip="62.5% at 37.4K tokens|Inkling-2-Mini"/><text class="strong" x="272.4" y="215.2" text-anchor="end">Inkling-2-Mini</text><path class="pt" d="M334.0 221.0 L342.0 229.0 L334.0 237.0 L326.0 229.0 Z" style="fill:var(--c2)"/><circle class="hit" tabindex="0" role="img" aria-label="Qwen3.6-35B-A3B: 60.0% at 45.0K tokens" cx="334.0" cy="229.0" r="16" data-tip="60.0% at 45.0K tokens|Qwen3.6-35B-A3B"/><text class="strong" x="321.0" y="233.0" text-anchor="end">Qwen3.6-35B-A3B</text></svg></div><details class="tview"><summary>View as table</summary><div class="tablewrap"><table><thead><tr><th class="">Model</th><th class="n">Pass@1</th><th class="n">Mean tokens / problem (K)</th></tr></thead><tbody><tr><td class="">DeepSeek-V4.1-1017, 2-bit</td><td class="n">82.5%</td><td class="n">24.6</td></tr><tr><td class="">Qwen3.6-27B FP8</td><td class="n">72.5%</td><td class="n">41.1</td></tr><tr><td class="">Inkling-2-Mini</td><td class="n">62.5%</td><td class="n">37.4</td></tr><tr><td class="">Qwen3.6-35B-A3B FP8</td><td class="n">60.0%</td><td class="n">45.0</td></tr></tbody></table></div></details></div></figure></section><section><h2>2 · Speed and parallelism</h2><figure class="chart"><div class="card"><h3>Single-stream decode speed, one user</h3><p class="cap">Output tokens per second for one request at a time on real coding prompts. DeepSeek-1017 is shown at greedy decoding; at temperature 1.0 it runs ~104 tok/s.</p><div class="legend"><span><i class="" style="--k:var(--c1)"></i>DeepSeek</span><span><i class="" style="--k:var(--c2)"></i>Qwen</span><span><i class="" style="--k:var(--c3)"></i>Inkling</span><span><i class="" style="--k:var(--ink2)"></i>solid: with speculative decoding</span><span><i class="light" style="--k:var(--ink2)"></i>light: without</span></div><div class="hbar" role="group" aria-label="Decode tokens per second"><div class="row"><div class="lab">Inkling · 2 GPUs (TP2)<span>SGLang · DSpark</span></div><div class="plot" style="--tick:20.0000%"><div class="bar" tabindex="0" style="--w:90.20%;--c:var(--c3)" data-tip="451 tok/s|Inkling · 2 GPUs (TP2) (SGLang · DSpark)" role="img" aria-label="Inkling · 2 GPUs (TP2): 451"></div><span class="val" style="--r:90.20%">451</span></div></div><div class="row"><div class="lab">Inkling · 1 GPU<span>SGLang · DSpark</span></div><div class="plot" style="--tick:20.0000%"><div class="bar" tabindex="0" style="--w:61.40%;--c:var(--c3)" data-tip="307 tok/s|Inkling · 1 GPU (SGLang · DSpark)" role="img" aria-label="Inkling · 1 GPU: 307"></div><span class="val" style="--r:61.40%">307</span></div></div><div class="row"><div class="lab">DeepSeek-V4-Flash-0731 · TP2<span>SGLang · DSpark</span></div><div class="plot" style="--tick:20.0000%"><div class="bar" tabindex="0" style="--w:56.80%;--c:var(--c1)" data-tip="284 tok/s|DeepSeek-V4-Flash-0731 · TP2 (SGLang · DSpark)" role="img" aria-label="DeepSeek-V4-Flash-0731 · TP2: 284"></div><span class="val" style="--r:56.80%">284</span></div></div><div class="row"><div class="lab">Inkling · 1 GPU<span>SGLang · no speculation</span></div><div class="plot" style="--tick:20.0000%"><div class="bar light" tabindex="0" style="--w:29.60%;--c:var(--c3)" data-tip="148 tok/s|Inkling · 1 GPU (SGLang · no speculation)" role="img" aria-label="Inkling · 1 GPU: 148"></div><span class="val" style="--r:29.60%">148</span></div></div><div class="row"><div class="lab">DeepSeek-1017 2-bit · 2 GPUs<span>llama.cpp · tensor split + DSpark</span></div><div class="plot" style="--tick:20.0000%"><div class="bar" tabindex="0" style="--w:29.20%;--c:var(--c1)" data-tip="146 tok/s|DeepSeek-1017 2-bit · 2 GPUs (llama.cpp · tensor split + DSpark)" role="img" aria-label="DeepSeek-1017 2-bit · 2 GPUs: 146"></div><span class="val" style="--r:29.20%">146</span></div></div><div class="row"><div class="lab">DeepSeek-1017 Coder · 1 GPU<span>llama.cpp · DSpark</span></div><div class="plot" style="--tick:20.0000%"><div class="bar" tabindex="0" style="--w:25.80%;--c:var(--c1)" data-tip="129 tok/s|DeepSeek-1017 Coder · 1 GPU (llama.cpp · DSpark)" role="img" aria-label="DeepSeek-1017 Coder · 1 GPU: 129"></div><span class="val" style="--r:25.80%">129</span></div></div><div class="row"><div class="lab">Qwen3.6-27B · 1 GPU<span>SGLang · MTP</span></div><div class="plot" style="--tick:20.0000%"><div class="bar" tabindex="0" style="--w:25.00%;--c:var(--c2)" data-tip="125 tok/s|Qwen3.6-27B · 1 GPU (SGLang · MTP)" role="img" aria-label="Qwen3.6-27B · 1 GPU: 125"></div><span class="val" style="--r:25.00%">125</span></div></div><div class="row"><div class="lab">DeepSeek-V4-Flash-0731 · TP2<span>SGLang · no speculation</span></div><div class="plot" style="--tick:20.0000%"><div class="bar light" tabindex="0" style="--w:19.20%;--c:var(--c1)" data-tip="96 tok/s|DeepSeek-V4-Flash-0731 · TP2 (SGLang · no speculation)" role="img" aria-label="DeepSeek-V4-Flash-0731 · TP2: 96"></div><span class="val" style="--r:19.20%">96</span></div></div><div class="row"><div class="lab">DeepSeek-1017 2-bit · tensor split<span>llama.cpp · no speculation</span></div><div class="plot" style="--tick:20.0000%"><div class="bar light" tabindex="0" style="--w:14.00%;--c:var(--c1)" data-tip="70 tok/s|DeepSeek-1017 2-bit · tensor split (llama.cpp · no speculation)" role="img" aria-label="DeepSeek-1017 2-bit · tensor split: 70"></div><span class="val" style="--r:14.00%">70</span></div></div><div class="row"><div class="lab">DeepSeek-V4-Flash-0731 · PP2<span>SGLang · no speculation</span></div><div class="plot" style="--tick:20.0000%"><div class="bar light" tabindex="0" style="--w:13.80%;--c:var(--c1)" data-tip="69 tok/s|DeepSeek-V4-Flash-0731 · PP2 (SGLang · no speculation)" role="img" aria-label="DeepSeek-V4-Flash-0731 · PP2: 69"></div><span class="val" style="--r:13.80%">69</span></div></div><div class="row"><div class="lab">DeepSeek-1017 2-bit · layer split<span>llama.cpp · no speculation</span></div><div class="plot" style="--tick:20.0000%"><div class="bar light" tabindex="0" style="--w:9.80%;--c:var(--c1)" data-tip="49 tok/s|DeepSeek-1017 2-bit · layer split (llama.cpp · no speculation)" role="img" aria-label="DeepSeek-1017 2-bit · layer split: 49"></div><span class="val" style="--r:9.80%">49</span></div></div><div class="axis"><div></div><div class="ticks"><span style="left:0.00%">0</span><span style="left:20.00%">100</span><span style="left:40.00%">200</span><span style="left:60.00%">300</span><span style="left:80.00%">400</span><span style="left:100.00%">500</span></div></div></div><details class="tview"><summary>View as table</summary><div class="tablewrap"><table><thead><tr><th class="">Setup</th><th class="">Engine / mode</th><th class="n">tok/s</th></tr></thead><tbody><tr><td class="">Inkling · 2 GPUs (TP2)</td><td class="">SGLang · DSpark</td><td class="n">451</td></tr><tr><td class="">Inkling · 1 GPU</td><td class="">SGLang · DSpark</td><td class="n">307</td></tr><tr><td class="">DeepSeek-V4-Flash-0731 · TP2</td><td class="">SGLang · DSpark</td><td class="n">284</td></tr><tr><td class="">Inkling · 1 GPU</td><td class="">SGLang · no speculation</td><td class="n">148</td></tr><tr><td class="">DeepSeek-1017 2-bit · 2 GPUs</td><td class="">llama.cpp · tensor split + DSpark</td><td class="n">146</td></tr><tr><td class="">DeepSeek-1017 Coder · 1 GPU</td><td class="">llama.cpp · DSpark</td><td class="n">129</td></tr><tr><td class="">Qwen3.6-27B · 1 GPU</td><td class="">SGLang · MTP</td><td class="n">125</td></tr><tr><td class="">DeepSeek-V4-Flash-0731 · TP2</td><td class="">SGLang · no speculation</td><td class="n">96</td></tr><tr><td class="">DeepSeek-1017 2-bit · tensor split</td><td class="">llama.cpp · no speculation</td><td class="n">70</td></tr><tr><td class="">DeepSeek-V4-Flash-0731 · PP2</td><td class="">SGLang · no speculation</td><td class="n">69</td></tr><tr><td class="">DeepSeek-1017 2-bit · layer split</td><td class="">llama.cpp · no speculation</td><td class="n">49</td></tr></tbody></table></div></details><p class=note>Qwen3.6-35B-A3B was not measured single-stream (aggregate 774 tok/s at 4 requests).</p></div></figure><figure class="chart"><div class="card"><h3>What each lever buys: pipeline vs tensor parallel vs speculative decoding</h3><p class="cap">Same 0–500 tok/s scale in every panel. Tensor parallel beats pipeline/layer split; speculative decoding then adds 2–3×.</p><div class="multi"><div class="panel"><h4>DeepSeek-V4-Flash-0731<span>SGLang · 2 GPUs · conc 1</span></h4><div class="hbar" role="group" aria-label="DeepSeek-V4-Flash-0731"><div class="row"><div class="lab">PP2<span></span></div><div class="plot" style="--tick:50.0000%"><div class="bar light" tabindex="0" style="--w:13.80%;--c:var(--c1)" data-tip="69 tok/s|DeepSeek-V4-Flash-0731: PP2" role="img" aria-label="PP2: 69"></div><span class="val" style="--r:13.80%">69</span></div></div><div class="row"><div class="lab">TP2<span></span></div><div class="plot" style="--tick:50.0000%"><div class="bar light" tabindex="0" style="--w:19.20%;--c:var(--c1)" data-tip="96 tok/s|DeepSeek-V4-Flash-0731: TP2" role="img" aria-label="TP2: 96"></div><span class="val" style="--r:19.20%">96</span></div></div><div class="row"><div class="lab">TP2 + DSpark<span></span></div><div class="plot" style="--tick:50.0000%"><div class="bar" tabindex="0" style="--w:56.80%;--c:var(--c1)" data-tip="284 tok/s|DeepSeek-V4-Flash-0731: TP2 + DSpark" role="img" aria-label="TP2 + DSpark: 284"></div><span class="val" style="--r:56.80%">284</span></div></div><div class="axis"><div></div><div class="ticks"><span style="left:0.00%">0</span><span style="left:50.00%">250</span><span style="left:100.00%">500</span></div></div></div></div><div class="panel"><h4>DeepSeek-V4.1-1017 2-bit<span>llama.cpp · 2 GPUs · conc 1</span></h4><div class="hbar" role="group" aria-label="DeepSeek-V4.1-1017 2-bit"><div class="row"><div class="lab">Layer split<span></span></div><div class="plot" style="--tick:50.0000%"><div class="bar light" tabindex="0" style="--w:9.80%;--c:var(--c1)" data-tip="49 tok/s|DeepSeek-V4.1-1017 2-bit: Layer split" role="img" aria-label="Layer split: 49"></div><span class="val" style="--r:9.80%">49</span></div></div><div class="row"><div class="lab">Tensor split<span></span></div><div class="plot" style="--tick:50.0000%"><div class="bar light" tabindex="0" style="--w:14.00%;--c:var(--c1)" data-tip="70 tok/s|DeepSeek-V4.1-1017 2-bit: Tensor split" role="img" aria-label="Tensor split: 70"></div><span class="val" style="--r:14.00%">70</span></div></div><div class="row"><div class="lab">Tensor + DSpark<span></span></div><div class="plot" style="--tick:50.0000%"><div class="bar" tabindex="0" style="--w:29.20%;--c:var(--c1)" data-tip="146 tok/s|DeepSeek-V4.1-1017 2-bit: Tensor + DSpark" role="img" aria-label="Tensor + DSpark: 146"></div><span class="val" style="--r:29.20%">146</span></div></div><div class="axis"><div></div><div class="ticks"><span style="left:0.00%">0</span><span style="left:50.00%">250</span><span style="left:100.00%">500</span></div></div></div></div><div class="panel"><h4>Inkling-2-Mini<span>SGLang · conc 1</span></h4><div class="hbar" role="group" aria-label="Inkling-2-Mini"><div class="row"><div class="lab">1 GPU<span></span></div><div class="plot" style="--tick:50.0000%"><div class="bar light" tabindex="0" style="--w:29.60%;--c:var(--c3)" data-tip="148 tok/s|Inkling-2-Mini: 1 GPU" role="img" aria-label="1 GPU: 148"></div><span class="val" style="--r:29.60%">148</span></div></div><div class="row"><div class="lab">1 GPU + DSpark<span></span></div><div class="plot" style="--tick:50.0000%"><div class="bar" tabindex="0" style="--w:61.40%;--c:var(--c3)" data-tip="307 tok/s|Inkling-2-Mini: 1 GPU + DSpark" role="img" aria-label="1 GPU + DSpark: 307"></div><span class="val" style="--r:61.40%">307</span></div></div><div class="row"><div class="lab">2 GPUs + DSpark<span></span></div><div class="plot" style="--tick:50.0000%"><div class="bar" tabindex="0" style="--w:90.20%;--c:var(--c3)" data-tip="451 tok/s|Inkling-2-Mini: 2 GPUs + DSpark" role="img" aria-label="2 GPUs + DSpark: 451"></div><span class="val" style="--r:90.20%">451</span></div></div><div class="axis"><div></div><div class="ticks"><span style="left:0.00%">0</span><span style="left:50.00%">250</span><span style="left:100.00%">500</span></div></div></div></div></div><details class="tview"><summary>View as table</summary><div class="tablewrap"><table><thead><tr><th class="">Model</th><th class="">Setup</th><th class="n">tok/s</th></tr></thead><tbody><tr><td class="">DeepSeek-V4-Flash-0731</td><td class="">PP2</td><td class="n">69</td></tr><tr><td class="">DeepSeek-V4-Flash-0731</td><td class="">TP2</td><td class="n">96</td></tr><tr><td class="">DeepSeek-V4-Flash-0731</td><td class="">TP2 + DSpark</td><td class="n">284</td></tr><tr><td class="">DeepSeek-V4.1-1017 2-bit</td><td class="">Layer split</td><td class="n">49</td></tr><tr><td class="">DeepSeek-V4.1-1017 2-bit</td><td class="">Tensor split</td><td class="n">70</td></tr><tr><td class="">DeepSeek-V4.1-1017 2-bit</td><td class="">Tensor + DSpark</td><td class="n">146</td></tr><tr><td class="">Inkling-2-Mini</td><td class="">1 GPU</td><td class="n">148</td></tr><tr><td class="">Inkling-2-Mini</td><td class="">1 GPU + DSpark</td><td class="n">307</td></tr><tr><td class="">Inkling-2-Mini</td><td class="">2 GPUs + DSpark</td><td class="n">451</td></tr></tbody></table></div></details><p class=note>Both GPUs are linked by PCIe only (peer-to-peer works, no NVLink). Expert parallel (EP2) on SGLang matched plain TP2 (9.70 vs 9.74 ms/token).</p></div></figure><figure class="chart"><div class="card"><h3>Prompt reading speed: SGLang vs llama.cpp</h3><p class="cap">Time to first token against prompt length (log–log). SGLang reads a 64K-token prompt in 2–3 s; llama.cpp on DeepSeek-1017 reads 42K tokens in 46 s (~920 tok/s).</p><div class="legend"><span><i class="" style="--k:var(--c3)"></i>Inkling</span><span><i class="" style="--k:var(--c1)"></i>DeepSeek (circle 0731 on SGLang, square 1017 on llama.cpp)</span></div><div class="svgwrap desk"><svg viewBox="0 0 620 360" role="img" aria-label="Time to first token versus prompt length, log scales"><line class="gl" x1="52" x2="492" y1="283.2" y2="283.2"/><text class="tl" x="44" y="287.2" text-anchor="end">0.1 s</text><line class="gl" x1="52" x2="492" y1="194.1" y2="194.1"/><text class="tl" x="44" y="198.1" text-anchor="end">1 s</text><line class="gl" x1="52" x2="492" y1="105.1" y2="105.1"/><text class="tl" x="44" y="109.1" text-anchor="end">10 s</text><line class="gl" x1="52" x2="492" y1="16.0" y2="16.0"/><text class="tl" x="44" y="20.0" text-anchor="end">100 s</text><line class="gl" x1="109.6" x2="109.6" y1="16" y2="310"/><text class="tl" x="109.6" y="328" text-anchor="middle">1K</text><line class="gl" x1="300.8" x2="300.8" y1="16" y2="310"/><text class="tl" x="300.8" y="328" text-anchor="middle">10K</text><line class="gl" x1="492.0" x2="492.0" y1="16" y2="310"/><text class="tl" x="492.0" y="328" text-anchor="middle">100K</text><line class="ax" x1="52" x2="492" y1="310" y2="310"/><text x="272.0" y="352" text-anchor="middle">prompt length (tokens, log scale)</text><path class="ln" d="M111.5 283.6 L284.2 228.1 L399.3 180.8 L456.9 166.9" style="stroke:var(--c3)"/><circle class="pt" cx="111.5" cy="283.6" r="5" style="fill:var(--c3)"/><circle class="hit" tabindex="0" role="img" aria-label="Inkling (SGLang TP2) 1024 tokens 0.099 s" cx="111.5" cy="283.6" r="14" data-tip="0.099 s|Inkling (SGLang TP2), 1,024 tokens"/><circle class="pt" cx="284.2" cy="228.1" r="5" style="fill:var(--c3)"/><circle class="hit" tabindex="0" role="img" aria-label="Inkling (SGLang TP2) 8192 tokens 0.415 s" cx="284.2" cy="228.1" r="14" data-tip="0.415 s|Inkling (SGLang TP2), 8,192 tokens"/><circle class="pt" cx="399.3" cy="180.8" r="5" style="fill:var(--c3)"/><circle class="hit" tabindex="0" role="img" aria-label="Inkling (SGLang TP2) 32768 tokens 1.41 s" cx="399.3" cy="180.8" r="14" data-tip="1.41 s|Inkling (SGLang TP2), 32,768 tokens"/><circle class="pt" cx="456.9" cy="166.9" r="5" style="fill:var(--c3)"/><circle class="hit" tabindex="0" role="img" aria-label="Inkling (SGLang TP2) 65536 tokens 2.02 s" cx="456.9" cy="166.9" r="14" data-tip="2.02 s|Inkling (SGLang TP2), 65,536 tokens"/><line class="gl" style="stroke:var(--c3)" x1="462.9" y1="166.9" x2="470.9" y2="176.9"/><text class="strong" x="472.9" y="180.9" text-anchor="start">Inkling</text><path class="ln" d="M111.5 273.0 L284.2 216.6 L399.3 168.5 L456.9 153.6" style="stroke:var(--c1)"/><circle class="pt" cx="111.5" cy="273.0" r="5" style="fill:var(--c1)"/><circle class="hit" tabindex="0" role="img" aria-label="DeepSeek-0731 (SGLang TP2) 1024 tokens 0.13 s" cx="111.5" cy="273.0" r="14" data-tip="0.13 s|DeepSeek-0731 (SGLang TP2), 1,024 tokens"/><circle class="pt" cx="284.2" cy="216.6" r="5" style="fill:var(--c1)"/><circle class="hit" tabindex="0" role="img" aria-label="DeepSeek-0731 (SGLang TP2) 8192 tokens 0.56 s" cx="284.2" cy="216.6" r="14" data-tip="0.56 s|DeepSeek-0731 (SGLang TP2), 8,192 tokens"/><circle class="pt" cx="399.3" cy="168.5" r="5" style="fill:var(--c1)"/><circle class="hit" tabindex="0" role="img" aria-label="DeepSeek-0731 (SGLang TP2) 32768 tokens 1.94 s" cx="399.3" cy="168.5" r="14" data-tip="1.94 s|DeepSeek-0731 (SGLang TP2), 32,768 tokens"/><circle class="pt" cx="456.9" cy="153.6" r="5" style="fill:var(--c1)"/><circle class="hit" tabindex="0" role="img" aria-label="DeepSeek-0731 (SGLang TP2) 65536 tokens 2.85 s" cx="456.9" cy="153.6" r="14" data-tip="2.85 s|DeepSeek-0731 (SGLang TP2), 65,536 tokens"/><line class="gl" style="stroke:var(--c1)" x1="462.9" y1="153.6" x2="470.9" y2="139.6"/><text class="strong" x="472.9" y="143.6" text-anchor="start">DeepSeek 0731</text><path class="ln" d="M81.1 171.4 L305.2 98.7 L420.3 46.1" style="stroke:var(--c1)"/><rect class="pt" x="76.1" y="166.4" width="10" height="10" rx="2" style="fill:var(--c1)"/><circle class="hit" tabindex="0" role="img" aria-label="DeepSeek-1017 2-bit (llama.cpp) 710 tokens 1.8 s" cx="81.1" cy="171.4" r="14" data-tip="1.8 s|DeepSeek-1017 2-bit (llama.cpp), 710 tokens"/><rect class="pt" x="300.2" y="93.7" width="10" height="10" rx="2" style="fill:var(--c1)"/><circle class="hit" tabindex="0" role="img" aria-label="DeepSeek-1017 2-bit (llama.cpp) 10546 tokens 11.8 s" cx="305.2" cy="98.7" r="14" data-tip="11.8 s|DeepSeek-1017 2-bit (llama.cpp), 10,546 tokens"/><rect class="pt" x="415.3" y="41.1" width="10" height="10" rx="2" style="fill:var(--c1)"/><circle class="hit" tabindex="0" role="img" aria-label="DeepSeek-1017 2-bit (llama.cpp) 42158 tokens 45.9 s" cx="420.3" cy="46.1" r="14" data-tip="45.9 s|DeepSeek-1017 2-bit (llama.cpp), 42,158 tokens"/><text class="strong" x="436.3" y="50.1" text-anchor="start">DeepSeek 1017</text></svg></div><div class="svgwrap mob"><svg viewBox="0 0 390 340" role="img" aria-label="Time to first token versus prompt length, log scales"><line class="gl" x1="44" x2="282" y1="265.0" y2="265.0"/><text class="tl" x="36" y="269.0" text-anchor="end">0.1 s</text><line class="gl" x1="44" x2="282" y1="182.0" y2="182.0"/><text class="tl" x="36" y="186.0" text-anchor="end">1 s</text><line class="gl" x1="44" x2="282" y1="99.0" y2="99.0"/><text class="tl" x="36" y="103.0" text-anchor="end">10 s</text><line class="gl" x1="44" x2="282" y1="16.0" y2="16.0"/><text class="tl" x="36" y="20.0" text-anchor="end">100 s</text><line class="gl" x1="75.1" x2="75.1" y1="16" y2="290"/><text class="tl" x="75.1" y="308" text-anchor="middle">1K</text><line class="gl" x1="178.6" x2="178.6" y1="16" y2="290"/><text class="tl" x="178.6" y="308" text-anchor="middle">10K</text><line class="gl" x1="282.0" x2="282.0" y1="16" y2="290"/><text class="tl" x="282.0" y="308" text-anchor="middle">100K</text><line class="ax" x1="44" x2="282" y1="290" y2="290"/><text x="163.0" y="332" text-anchor="middle">prompt length (tokens, log scale)</text><path class="ln" d="M76.2 265.4 L169.6 213.7 L231.9 169.6 L263.0 156.7" style="stroke:var(--c3)"/><circle class="pt" cx="76.2" cy="265.4" r="5" style="fill:var(--c3)"/><circle class="hit" tabindex="0" role="img" aria-label="Inkling (SGLang TP2) 1024 tokens 0.099 s" cx="76.2" cy="265.4" r="14" data-tip="0.099 s|Inkling (SGLang TP2), 1,024 tokens"/><circle class="pt" cx="169.6" cy="213.7" r="5" style="fill:var(--c3)"/><circle class="hit" tabindex="0" role="img" aria-label="Inkling (SGLang TP2) 8192 tokens 0.415 s" cx="169.6" cy="213.7" r="14" data-tip="0.415 s|Inkling (SGLang TP2), 8,192 tokens"/><circle class="pt" cx="231.9" cy="169.6" r="5" style="fill:var(--c3)"/><circle class="hit" tabindex="0" role="img" aria-label="Inkling (SGLang TP2) 32768 tokens 1.41 s" cx="231.9" cy="169.6" r="14" data-tip="1.41 s|Inkling (SGLang TP2), 32,768 tokens"/><circle class="pt" cx="263.0" cy="156.7" r="5" style="fill:var(--c3)"/><circle class="hit" tabindex="0" role="img" aria-label="Inkling (SGLang TP2) 65536 tokens 2.02 s" cx="263.0" cy="156.7" r="14" data-tip="2.02 s|Inkling (SGLang TP2), 65,536 tokens"/><line class="gl" style="stroke:var(--c3)" x1="269.0" y1="156.7" x2="277.0" y2="166.7"/><text class="strong" x="279.0" y="170.7" text-anchor="start">Inkling</text><path class="ln" d="M76.2 255.6 L169.6 202.9 L231.9 158.1 L263.0 144.3" style="stroke:var(--c1)"/><circle class="pt" cx="76.2" cy="255.6" r="5" style="fill:var(--c1)"/><circle class="hit" tabindex="0" role="img" aria-label="DeepSeek-0731 (SGLang TP2) 1024 tokens 0.13 s" cx="76.2" cy="255.6" r="14" data-tip="0.13 s|DeepSeek-0731 (SGLang TP2), 1,024 tokens"/><circle class="pt" cx="169.6" cy="202.9" r="5" style="fill:var(--c1)"/><circle class="hit" tabindex="0" role="img" aria-label="DeepSeek-0731 (SGLang TP2) 8192 tokens 0.56 s" cx="169.6" cy="202.9" r="14" data-tip="0.56 s|DeepSeek-0731 (SGLang TP2), 8,192 tokens"/><circle class="pt" cx="231.9" cy="158.1" r="5" style="fill:var(--c1)"/><circle class="hit" tabindex="0" role="img" aria-label="DeepSeek-0731 (SGLang TP2) 32768 tokens 1.94 s" cx="231.9" cy="158.1" r="14" data-tip="1.94 s|DeepSeek-0731 (SGLang TP2), 32,768 tokens"/><circle class="pt" cx="263.0" cy="144.3" r="5" style="fill:var(--c1)"/><circle class="hit" tabindex="0" role="img" aria-label="DeepSeek-0731 (SGLang TP2) 65536 tokens 2.85 s" cx="263.0" cy="144.3" r="14" data-tip="2.85 s|DeepSeek-0731 (SGLang TP2), 65,536 tokens"/><line class="gl" style="stroke:var(--c1)" x1="269.0" y1="144.3" x2="277.0" y2="130.3"/><text class="strong" x="279.0" y="134.3" text-anchor="start">DeepSeek 0731</text><path class="ln" d="M59.8 160.8 L181.0 93.0 L243.2 44.1" style="stroke:var(--c1)"/><rect class="pt" x="54.8" y="155.8" width="10" height="10" rx="2" style="fill:var(--c1)"/><circle class="hit" tabindex="0" role="img" aria-label="DeepSeek-1017 2-bit (llama.cpp) 710 tokens 1.8 s" cx="59.8" cy="160.8" r="14" data-tip="1.8 s|DeepSeek-1017 2-bit (llama.cpp), 710 tokens"/><rect class="pt" x="176.0" y="88.0" width="10" height="10" rx="2" style="fill:var(--c1)"/><circle class="hit" tabindex="0" role="img" aria-label="DeepSeek-1017 2-bit (llama.cpp) 10546 tokens 11.8 s" cx="181.0" cy="93.0" r="14" data-tip="11.8 s|DeepSeek-1017 2-bit (llama.cpp), 10,546 tokens"/><rect class="pt" x="238.2" y="39.1" width="10" height="10" rx="2" style="fill:var(--c1)"/><circle class="hit" tabindex="0" role="img" aria-label="DeepSeek-1017 2-bit (llama.cpp) 42158 tokens 45.9 s" cx="243.2" cy="44.1" r="14" data-tip="45.9 s|DeepSeek-1017 2-bit (llama.cpp), 42,158 tokens"/><text class="strong" x="259.2" y="48.1" text-anchor="start">DeepSeek 1017</text></svg></div><details class="tview"><summary>View as table</summary><div class="tablewrap"><table><thead><tr><th class="">Setup</th><th class="n">Prompt tokens</th><th class="n">Seconds</th></tr></thead><tbody><tr><td class="">Inkling (SGLang TP2)</td><td class="n">1,024</td><td class="n">0.099</td></tr><tr><td class="">Inkling (SGLang TP2)</td><td class="n">8,192</td><td class="n">0.415</td></tr><tr><td class="">Inkling (SGLang TP2)</td><td class="n">32,768</td><td class="n">1.41</td></tr><tr><td class="">Inkling (SGLang TP2)</td><td class="n">65,536</td><td class="n">2.02</td></tr><tr><td class="">DeepSeek-0731 (SGLang TP2)</td><td class="n">1,024</td><td class="n">0.13</td></tr><tr><td class="">DeepSeek-0731 (SGLang TP2)</td><td class="n">8,192</td><td class="n">0.56</td></tr><tr><td class="">DeepSeek-0731 (SGLang TP2)</td><td class="n">32,768</td><td class="n">1.94</td></tr><tr><td class="">DeepSeek-0731 (SGLang TP2)</td><td class="n">65,536</td><td class="n">2.85</td></tr><tr><td class="">DeepSeek-1017 2-bit (llama.cpp)</td><td class="n">710</td><td class="n">1.8</td></tr><tr><td class="">DeepSeek-1017 2-bit (llama.cpp)</td><td class="n">10,546</td><td class="n">11.8</td></tr><tr><td class="">DeepSeek-1017 2-bit (llama.cpp)</td><td class="n">42,158</td><td class="n">45.9</td></tr></tbody></table></div></details><p class=note>Keep DeepSeek-1017 prompts short; for large repos prefer Inkling or Qwen on SGLang.</p></div></figure></section><section><h2>3 · Easy to medium coding, and assistant checks</h2><figure class="chart"><div class="card"><h3>Easy and medium coding is a tie</h3><p class="cap">EvalPlus pass@1 (164 HumanEval+ and 378 MBPP+ problems, greedy, one sample) plus a 15-prompt tool-calling test. The 95% interval is about ±4–5 points, so these differences are noise.</p><div class="tablewrap"><table><thead><tr><th>Model</th><th>Effort</th><th class="n">HumanEval+</th><th class="n">MBPP+</th><th>Tool calls</th></tr></thead><tbody><tr><td><span style="display:inline-block;width:10px;height:10px;border-radius:3px;background:var(--c3);margin-right:8px"></span>Inkling-2-Mini</td><td>low</td><td class="n">92.7%</td><td class="n">83.3%</td><td>15/15 · 0.24 s</td></tr><tr><td><span style="display:inline-block;width:10px;height:10px;border-radius:3px;background:var(--c1);margin-right:8px"></span>DeepSeek-V4-Flash-0731</td><td>low</td><td class="n">93.9%</td><td class="n">81.0%</td><td>15/15 · 0.6–1.4 s</td></tr><tr><td><span style="display:inline-block;width:10px;height:10px;border-radius:3px;background:var(--c1);margin-right:8px"></span>DeepSeek-V4.1-1017 2-bit</td><td>low (=50)</td><td class="n">93.3%</td><td class="n">84.1%</td><td>15/15 · 0.64 s</td></tr><tr><td><span style="display:inline-block;width:10px;height:10px;border-radius:3px;background:var(--c1);margin-right:8px"></span>DeepSeek-V4.1-1017 Coder (1 GPU)</td><td>low (=50)</td><td class="n">91.5%</td><td class="n">84.7%</td><td>15/15</td></tr></tbody></table></div><p class=note>Speed and agent-friendliness decide here: Inkling is ~3× faster per stream and answers tool calls in 0.24 s.</p></div></figure><figure class="chart"><div class="card"><h3>For quick coding, Inkling at low effort is best</h3><p class="cap">Inkling-2-Mini with DSpark, greedy decoding, 6000-token cap on HumanEval. At default effort it often reasons past the cap without answering; low effort fixes that and is 2.4× faster.</p><div class="multi"><div class="panel"><h4>HumanEval pass@1<span>higher is better</span></h4><div class="hbar" role="group" aria-label="Accuracy by effort"><div class="row"><div class="lab">Default (high)<span></span></div><div class="plot" style="--tick:50.0000%"><div class="bar" tabindex="0" style="--w:91.50%;--c:var(--c3)" data-tip="91.5%|HumanEval pass@1, Default (high) effort" role="img" aria-label="Default (high): 91.5%"></div><span class="val" style="--r:91.50%">91.5%</span></div></div><div class="row"><div class="lab">Medium<span></span></div><div class="plot" style="--tick:50.0000%"><div class="bar" tabindex="0" style="--w:98.20%;--c:var(--c3)" data-tip="98.2%|HumanEval pass@1, Medium effort" role="img" aria-label="Medium: 98.2%"></div><span class="val" style="--r:98.20%">98.2%</span></div></div><div class="row"><div class="lab">Low<span></span></div><div class="plot" style="--tick:50.0000%"><div class="bar" tabindex="0" style="--w:98.80%;--c:var(--c3)" data-tip="98.8%|HumanEval pass@1, Low effort" role="img" aria-label="Low: 98.8%"></div><span class="val" style="--r:98.80%">98.8%</span></div></div><div class="axis"><div></div><div class="ticks"><span style="left:0.00%">0%</span><span style="left:50.00%">50%</span><span style="left:100.00%">100%</span></div></div></div></div><div class="panel"><h4>Tokens per problem<span>lower is cheaper</span></h4><div class="hbar" role="group" aria-label="Tokens by effort"><div class="row"><div class="lab">Default (high)<span></span></div><div class="plot" style="--tick:50.0000%"><div class="bar" tabindex="0" style="--w:86.81%;--c:var(--c3)" data-tip="1,389 tokens|per problem, Default (high) effort" role="img" aria-label="Default (high): 1,389"></div><span class="val" style="--r:86.81%">1,389</span></div></div><div class="row"><div class="lab">Medium<span></span></div><div class="plot" style="--tick:50.0000%"><div class="bar" tabindex="0" style="--w:54.69%;--c:var(--c3)" data-tip="875 tokens|per problem, Medium effort" role="img" aria-label="Medium: 875"></div><span class="val" style="--r:54.69%">875</span></div></div><div class="row"><div class="lab">Low<span></span></div><div class="plot" style="--tick:50.0000%"><div class="bar" tabindex="0" style="--w:34.50%;--c:var(--c3)" data-tip="552 tokens|per problem, Low effort" role="img" aria-label="Low: 552"></div><span class="val" style="--r:34.50%">552</span></div></div><div class="axis"><div></div><div class="ticks"><span style="left:0.00%">0</span><span style="left:50.00%">800</span><span style="left:100.00%">1,600</span></div></div></div></div></div><details class="tview"><summary>View as table</summary><div class="tablewrap"><table><thead><tr><th class="">Effort</th><th class="n">HumanEval pass@1</th><th class="n">Tokens / problem</th></tr></thead><tbody><tr><td class="">Default (high)</td><td class="n">91.5%</td><td class="n">1,389</td></tr><tr><td class="">Medium</td><td class="n">98.2%</td><td class="n">875</td></tr><tr><td class="">Low</td><td class="n">98.8%</td><td class="n">552</td></tr></tbody></table></div></details><p class=note>This is the quick-question regime with a small cap. For the hardest problems the best-case settings above (max effort, large budget) are better.</p></div></figure></section>
+<section>
+<h2>4 · Setup that worked</h2>
+<div class="callout">Hardware: 2× NVIDIA RTX PRO 6000 Blackwell Max-Q (SM120, 96 GB each), PCIe only, AMD host with 125 GB RAM, Docker with the NVIDIA runtime.</div>
+<h3>Inkling-2-Mini (SGLang, both GPUs)</h3>
+<pre><code>docker run -d --gpus '"device=0,1"' --ipc=host --shm-size 32g -p 30000:30000 \
+  -v ~/.cache/huggingface:/root/.cache/huggingface \
+  -e SGLANG_OPT_INKLING2_VERIFY_REL_BIAS_KERNEL=1 -e SGLANG_OPT_DSV41_DSPARK_MID_FOLD=1 \
+  -e SGLANG_OPT_DSV41_DSPARK_PREPARE_INPUTS_ONCE=1 -e SGLANG_OPT_DSV41_DSPARK_SKIP_PREFILLED_INPUTS=1 \
+  lmsysorg/sglang:inkling-2-mini python3 -m sglang.launch_server \
+  --model-path thinkingmachines/Inkling-2-Mini --host 0.0.0.0 --port 30000 --tp 2 --ep 1 \
+  --attention-backend fa4 --dtype bfloat16 --page-size 128 --grammar-backend xgrammar \
+  --reasoning-parser inkling --tool-call-parser inkling2 \
+  --speculative-algorithm DSPARK --speculative-num-draft-tokens 8 --max-running-requests 4</code></pre>
+<h3>DeepSeek-V4.1-Flash-1017, 2-bit (llama.cpp, both GPUs)</h3>
+<pre><code># GGUF: ISTA-DASLab/DeepSeek-V4.1-Flash-1017-GSQ-RCO-GGUF (IQ2_XXS + the shared Engram file), plus
+# the DSpark drafter from ggml-org/DeepSeek-V4.1-Flash-1017-GGUF. Link Engram as shard 6 of the backbone.
+docker run -d --gpus all --ipc=host -p 30000:8080 -v ~/models:/models:ro ghcr.io/ggml-org/llama.cpp:server-cuda13 \
+  -m /models/ds41-1017-ista/DeepSeek-V4.1-Flash-1017-GSQ-RCO-IQ2_XXS-00001-of-00006.gguf \
+  -ngl 99 -sm tensor -c 196608 -fa on --parallel 1 --reasoning on \
+  --spec-type draft-dspark --model-draft /models/ds41-1017-ista/dspark-DeepSeek-V4.1-Flash-1017-MXFP4.gguf -ngld 99
+# per request: temperature 1.0, top_p 1.0, top_k 0, min_p 0, "reasoning_effort": "max", max_tokens 100000+</code></pre>
+<h3>Qwen3.6-27B (SGLang, one GPU, MTP)</h3>
+<pre><code>docker run -d --gpus '"device=1"' --ipc=host --shm-size 32g -p 30001:30001 -v ~/.cache/huggingface:/root/.cache/huggingface \
+  lmsysorg/sglang:inkling-2-mini python3 -m sglang.launch_server --model-path Qwen/Qwen3.6-27B-FP8 --port 30001 \
+  --tp-size 1 --mem-fraction-static 0.85 --context-length 262144 --reasoning-parser qwen3 --tool-call-parser qwen3_coder \
+  --speculative-algo NEXTN --speculative-num-steps 3 --speculative-eagle-topk 1 --speculative-num-draft-tokens 4</code></pre>
+<h3>Gotchas</h3>
+<ul class="tldr">
+<li>The <code>lmsysorg/sglang:inkling-2-mini</code> image is not plain upstream: it carries SM120-only kernels. Don't swap in an upstream checkout.</li>
+<li>DeepSeek-V4-Flash-0731 on SGLang needs <code>--moe-runner-backend flashinfer_cutlass</code> (the auto-picked TRT-LLM kernels only ship for B200-class GPUs) and a one-line change so the DSpark draft head's MXFP4 experts use the SM120 CUTLASS path.</li>
+<li>DSpark draft length is fixed by the checkpoint (8 for Inkling, 6 for DeepSeek-0731); it cannot be tuned.</li>
+<li>llama.cpp must be at least b11870 for DeepSeek-V4.1 (the image above is b12602). The 110 GB Engram file is memory-mapped from SSD; keep it on NVMe and avoid memory-hungry neighbours on a 125 GB host.</li>
+<li>The 1017 download is 249 GB; a wired connection saves hours.</li>
+</ul>
+</section>
+
+<section>
+<h2>5 · How far to trust this</h2>
+<ul class="tldr">
+<li><b>Small samples.</b> 40 hard problems with one sample at temperature 1.0 gives intervals of roughly ±12–15 points per model; only the DeepSeek-vs-Inkling and DeepSeek-vs-Qwen35B gaps are statistically clear.</li>
+<li><b>Contamination.</b> LiveCodeBench v6 covers contests up to April 2025, likely inside every model's training data. HumanEval and MBPP are older still.</li>
+<li><b>Not agentic.</b> Nothing here measures repo-level work (SWE-bench style), long context quality, or tool use beyond a 15-prompt check.</li>
+<li><b>Vendor claims are vendor claims.</b> The 2-bit quantization's parity with the base model comes from its authors; we only tested what is on this page.</li>
+<li><b>Uneven timing.</b> DeepSeek ran one request at a time while the others ran four in parallel, so compare tokens per problem and single-stream speed rather than wall time.</li>
+</ul>
+</section>
+<details class="appendix"><summary>Full written report (all measurements, in prose)</summary><p class="cap" style="color:var(--ink2)">Paths such as <code>deploy/…</code> refer to helper scripts in my working directory; the essential commands are in section 4 above.</p><div class="md"><h1>Running Inkling-2-Mini and DeepSeek-V4-Flash on 2× RTX PRO 6000 (SM120): coding + personal-assistant guide</h1>
 <p>Measured 2026-11-21/22 on this machine. All numbers are from runs logged in <code>logs/</code>, <code>evals/</code>, <code>NOTES.md</code>.</p>
 <h2>TL;DR</h2>
 <table>
@@ -41,11 +162,15 @@ th,td{border:1px solid var(--line);padding:6px 10px;text-align:left;vertical-ali
 </tr>
 <tr>
 <td>#1 quality lever</td>
-<td><strong>Reasoning effort.</strong> Inkling's default effort over-thinks and fails by running out of tokens; <code>low</code> is +7 points on HumanEval and 2.4× faster</td>
+<td><strong>Evaluation/serving protocol.</strong> Greedy decoding and small token caps badly understated every reasoning model; with vendor-recommended sampling, max effort and 100K+ tokens the hard-problem scores rose ~20 points (section 9). For quick coding with Inkling, <code>low</code> effort is still +7 points on HumanEval and 2.4× faster</td>
 </tr>
 <tr>
-<td>Couldn't do</td>
-<td><code>DeepSeek-V4.1-Flash-1017</code> – no NVFP4 build exists and the official weights are 510 GB. We ran <code>V4-Flash-0731</code> NVFP4 (164 GB) instead</td>
+<td>Best hard-problem coder (LiveCodeBench hard-40, best-case settings)</td>
+<td><strong>DeepSeek-1017 2-bit 82.5%</strong> &gt; Qwen3.6-27B 72.5% (best on one GPU) &gt; Inkling 62.5% &gt; Qwen3.6-35B-A3B 60.0%; DeepSeek is significantly ahead of Inkling and the 35B Qwen, not significantly ahead of Qwen3.6-27B</td>
+</tr>
+<tr>
+<td><code>DeepSeek-V4.1-Flash-1017</code></td>
+<td><strong>Works</strong> (section 7). It is <em>not</em> a small model despite "Flash": 552B backbone + 196B Engram memory. The official NVFP4 build (429 GB) can't fit, but the ISTA-DASLab 2-bit GGUF runs in llama.cpp: <strong>146 tok/s on both GPUs</strong> (tensor split + DSpark), or the expert-pruned <strong>Coder variant on ONE GPU at 129 tok/s</strong>, leaving the other GPU free for Inkling. SGLang cannot run it on this box</td>
 </tr>
 </tbody>
 </table>
@@ -53,7 +178,7 @@ th,td{border:1px solid var(--line);padding:6px 10px;text-align:left;vertical-ali
 <ul>
 <li>Hardware: 2× NVIDIA RTX PRO 6000 Blackwell Max-Q (SM120, 96 GB each), <strong>no NVLink</strong>; <code>nvidia-smi topo -p2p r</code> shows P2P OK. AMD EPYC host (48 threads, 125 GB RAM).</li>
 <li>Software: Docker image <code>lmsysorg/sglang:inkling-2-mini</code> (sglang <code>03fde9cc3</code> + SM120 kernels, torch 2.14.1+cu130, FlashInfer 0.7.4 with <code>sm120f</code> kernels). Note the image is <em>not</em> upstream: it carries SM120-only kernels that upstream lacks, so don't swap in an upstream checkout.</li>
-<li>Launch scripts (tested end to end): <code>deploy/serve_inkling.sh {tp2|replicas|gpu0|stop}</code>, <code>deploy/serve_deepseek.sh [stop]</code>.</li>
+<li>Launch scripts (tested end to end): <code>deploy/serve_inkling.sh {tp2|replicas|gpu0|gpu1|stop}</code>, <code>deploy/serve_deepseek.sh [stop]</code> (SGLang, V4-Flash-0731), <code>deploy/serve_deepseek41_1017.sh {full|coder|stop}</code> (llama.cpp, V4.1-Flash-1017).</li>
 <li>Only one patch was needed (<code>deploy/patches/sm120_draft_moe.diff</code>, 1 file): the DeepSeek DSpark draft head hard-wired an SM100-only TRT-LLM MoE kernel for its MXFP4 layers; on SM120 it now uses the FlashInfer CUTLASS MXFP8×MXFP4 path (already present in the image for the non-hybrid path).</li>
 <li>DeepSeek on SM120 <strong>requires <code>--moe-runner-backend flashinfer_cutlass</code></strong>. The auto-selected <code>flashinfer_trtllm_routed</code> crashes (cubins exist only for SM100/103/107 — the NVIDIA model card was validated on B200).</li>
 <li>DSpark draft length is fixed by the checkpoint (<code>num_draft_tokens = gamma+1</code>: 8 for Inkling, 6 for DeepSeek) – not tunable.</li>
@@ -244,14 +369,250 @@ th,td{border:1px solid var(--line);padding:6px 10px;text-align:left;vertical-ali
 <p><strong>Daily coding + assistant (one user):</strong>
 <code>deploy/serve_inkling.sh tp2</code>, send <code>{"reasoning_effort":"low"}</code>, temperature 0 for code, always set <code>max_tokens</code> (Inkling can ramble at higher effort). ~450 tok/s, sub-second tool calls, the 19.5 GB of weights (~10 GB per GPU under TP2) leave ~80 GB per GPU for KV cache and other work.</p>
 <p><strong>Several agents / IDE + background jobs at once:</strong> <code>deploy/serve_inkling.sh replicas</code> (one per GPU) or run one server on GPU 0 and use GPU 1 for something else (embeddings, image/vision model, a second model).</p>
-<p><strong>When to switch to DeepSeek:</strong> only for knowledge-heavy or very-long-context work where a 300B-total model is worth 40% lower speed, a 6-minute swap (<code>serve_deepseek.sh</code>, it occupies both GPUs and leaves ~5 GB/GPU free for KV), and no co-resident models. Use <code>reasoning_effort: low</code>; its default non-thinking mode drops ~10 coding points.</p>
+<p><strong>When to switch to DeepSeek:</strong> for the hardest problems use <strong>V4.1-Flash-1017</strong> (section 7): <code>serve_deepseek41_1017.sh full</code> (146 tok/s on both GPUs) – or run the <strong>Coder</strong> variant on GPU 0 (129 tok/s) and Inkling on GPU 1 (307 tok/s) at the same time, which is the best use of two cards if you code most of the day and still want a fast assistant. V4-Flash-0731 (SGLang) is now mostly superseded: slower than Inkling and smaller than 1017; its non-thinking default also drops ~10 coding points (use <code>reasoning_effort: low</code>).</p>
 <p><strong>Don't bother with:</strong> PP2, EP2, or hand-tuning the draft length (fixed by the checkpoint).</p>
 <p><strong>Housekeeping:</strong> both servers use <code>--restart unless-stopped</code>; run <code>serve_*.sh stop</code> before launching the other model (both want the GPUs). Weights and the image are cached in <code>~/.cache/huggingface</code> and Docker, so restarts take ~5–6 minutes (DeepSeek) / ~5 minutes (Inkling TP2), dominated by CUDA-graph capture and kernel autotune.</p>
+<h2>7. DeepSeek-V4.1-Flash-1017 (the one you asked for)</h2>
+<p><strong>What it is.</strong> <code>deepseek-ai/DeepSeek-V4.1-Flash-1017</code> has a 552B-parameter backbone (384 experts/layer, 40 layers, hidden 5120) plus a 196B "Engram" lookup memory (two huge n-gram embedding tables), 763B in total, 1M context, native image input. That is roughly twice V4-Flash-0731. Official sizes: 510 GB (FP8/FP4); <code>nvidia/DeepSeek-V4.1-Flash-1017-NVFP4</code> 429 GB (the backbone alone is ~330 GB, so it cannot fit in 192 GB of VRAM even with Engram offloaded; NVIDIA validated it on 4× GB300). SGLang therefore cannot serve it on this machine, and neither can vLLM.</p>
+<p><strong>What works: llama.cpp + ISTA-DASLab "GSQ-RCO" 2-bit GGUF</strong> (<code>ISTA-DASLab/DeepSeek-V4.1-Flash-1017-GSQ-RCO-GGUF</code>). Their IQ2_XXS build is a 138 GB backbone (2.0 bits/weight, per-tensor mixed precision) plus the shared 110 GB Engram file, which llama.cpp memory-maps from SSD and reads one row per token, so it needs neither VRAM nor RAM. Runtime: official image <code>ghcr.io/ggml-org/llama.cpp:server-cuda13</code> (build 12602; needs ≥ b11870 for DeepSeek-V4.1; your local <code>~/llama.cpp</code> is b7898 and too old). It runs on SM120 out of the box and supports DSpark (<code>--spec-type draft-dspark</code>, draft model <code>ggml-org/…-GGUF/dspark-…-MXFP4.gguf</code>, 7.9 GB). Total download 249 GB; load takes 1.5–4 min.</p>
+<table>
+<thead>
+<tr>
+<th>config (HumanEval first 12, low effort, 1 request)</th>
+<th>tok/s</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>2 GPUs, layer split (default)</td>
+<td>49.4</td>
+</tr>
+<tr>
+<td>2 GPUs, <strong>tensor split</strong> (<code>-sm tensor</code>)</td>
+<td>69.7</td>
+</tr>
+<tr>
+<td>2 GPUs, tensor split + <strong>DSpark</strong></td>
+<td><strong>146.0</strong> (mean accepted length ≈ 3.0)</td>
+</tr>
+<tr>
+<td><strong>Coder</strong> variant, <strong>1 GPU</strong>, DSpark</td>
+<td>128.8</td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li>Tensor split beats layer split by 41%, matching the TP2-over-PP2 lesson from SGLang. DSpark adds another 2.1×.</li>
+<li>The <strong>Coder variant</strong> (<code>…-GSQ-RCO-Coder-GGUF</code>, <code>IQ2_XXS/</code>) removes half of the experts (192 of 384) and keeps the rest at 2-bit: a 72 GB backbone that fits on <strong>one</strong> GPU (79 GB used), loads in 20 s and keeps GPU 1 completely free. ISTA reports SWE-bench Verified 77.0 vs 81.2 for the base model (vendor numbers; unverified here).</li>
+<li>Co-residency works: Coder on GPU 0 busy with an eval, Inkling on GPU 1 measured 309 tok/s (vs 307 alone) – no interference.</li>
+</ul>
+<p>Coding evals (low effort = effort 50, the setting ISTA evaluates; DSpark; 1 request at a time; max_tokens 8000):</p>
+<table>
+<thead>
+<tr>
+<th>model</th>
+<th>HumanEval+</th>
+<th>MBPP+</th>
+<th>tool calls</th>
+<th>tok/s</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>1017 full</strong> (2 GPUs)</td>
+<td>93.3%</td>
+<td>84.1%</td>
+<td>15/15 (0.64 s)</td>
+<td>140–150</td>
+</tr>
+<tr>
+<td><strong>1017 Coder</strong> (1 GPU)</td>
+<td>91.5%</td>
+<td>84.7%</td>
+<td>15/15</td>
+<td>128</td>
+</tr>
+<tr>
+<td>Inkling (low, TP2)</td>
+<td>92.7%</td>
+<td>83.3%</td>
+<td>15/15 (0.24 s)</td>
+<td>~450 (1010 at conc 4)</td>
+</tr>
+<tr>
+<td>DeepSeek-V4-Flash-0731 (low)</td>
+<td>93.9%</td>
+<td>81.0%</td>
+<td>15/15</td>
+<td>260–284</td>
+</tr>
+</tbody>
+</table>
+<p>All four are statistically tied on these single-function sets (±4–5 points). 1017's claimed advantage (AIME25/GPQA/LiveCodeBench v6/SWE-bench at base-model level even at 2 bits) is on harder, longer tasks that these evals cannot show; we did not reproduce those vendor numbers.</p>
+<p><strong>How to run it:</strong> <code>deploy/serve_deepseek41_1017.sh full</code> (both GPUs) or <code>… coder</code> (GPU 0, then <code>deploy/serve_inkling.sh gpu1</code> for a fast assistant on GPU 1, port 30001). Send <code>"reasoning_effort": "low"</code> (=50); the default <code>high</code> (75) thinks much longer.</p>
+<p><strong>Practical caveats.</strong> llama-server runs one slot here (<code>--parallel 1</code>): fine for one user, not for several agents. The 110 GB Engram file lives in the page cache of a 125 GB-RAM machine, so avoid memory-hungry neighbours; the 2-bit quant is a research quantization and the benchmark parity is vendor-reported. 1M-token context was not tested (we ran 32K–64K).</p>
+<h2>8. Head to head: DeepSeek-V4.1-Flash-1017 at 2-bit vs Inkling-2-Mini at 4-bit</h2>
+<p>Both on this machine, both with DSpark, one request stream at a time unless noted, <code>reasoning_effort: low</code> (= effort 50), same prompts and scorer.</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th><strong>DeepSeek-V4.1-Flash-1017, 2-bit</strong></th>
+<th><strong>Inkling-2-Mini, 4-bit</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Format / engine</td>
+<td>GSQ-RCO IQ2_XXS GGUF (2.0 bpw backbone, Engram 4.5 bpw), llama.cpp b12602</td>
+<td>NVFP4 experts + MXFP8, SGLang</td>
+</tr>
+<tr>
+<td>Size</td>
+<td>763B params; 249 GB on disk; ~68 GB VRAM per GPU on both GPUs (Engram on SSD)</td>
+<td>19.5 GB on disk; ~10 GB per GPU under TP2 (or ~18 GB on one GPU)</td>
+</tr>
+<tr>
+<td>Decode, 1 stream</td>
+<td>146 tok/s (both GPUs)</td>
+<td><strong>451 tok/s</strong> (TP2), 307 (one GPU)</td>
+</tr>
+<tr>
+<td>Decode, 4 concurrent</td>
+<td>~105–115 tok/s total (4 slots did not beat 1 slot)</td>
+<td><strong>1010–1370 tok/s</strong> total</td>
+</tr>
+<tr>
+<td>Prefill / first token</td>
+<td>~920 tok/s: 10K-token prompt 11.8 s, 42K tokens 46 s</td>
+<td>~20K+ tok/s: 8K 0.4 s, 32K 1.4 s, 64K 2.0 s</td>
+</tr>
+<tr>
+<td>Cold start</td>
+<td>76–144 s (cached)</td>
+<td>330 s</td>
+</tr>
+<tr>
+<td>HumanEval+ / MBPP+</td>
+<td>93.3% / 84.1%</td>
+<td>92.7% / 83.3%</td>
+</tr>
+<tr>
+<td>Tool calling (15 prompts)</td>
+<td>15/15, 0.64 s</td>
+<td>15/15, 0.24 s</td>
+</tr>
+<tr>
+<td><strong>LiveCodeBench v6, 70 harder problems</strong> (40 hard + 30 medium, Feb–Apr 2025 contests)</td>
+<td><strong>75.7%</strong> (hard 62.5%, medium 93.3%), mean 7.9K tokens/problem, 13 hit the 20K cap</td>
+<td>68.6% (hard 55.0%, medium 86.7%) with a 60K cap; 57.1% with the 20K cap; 51.4% at medium effort</td>
+</tr>
+<tr>
+<td>Wall time for those 70 problems (4 in parallel)</td>
+<td>88 min</td>
+<td>17 min (60K cap)</td>
+</tr>
+</tbody>
+</table>
+<p>What this says:
+- <strong>Easy-to-medium coding is a tie</strong> (HumanEval+, MBPP+, tool calls all within noise), so there Inkling's 3× decode speed, 10× aggregate throughput and ~25× faster prefill decide it.
+- <strong>On harder algorithmic problems the 2-bit DeepSeek is better</strong>: +7 points overall and +7.5 on hard, with 2.4× fewer tokens per problem. Inkling at low effort often loops until it hits the token cap (17 of 70 even at 60K tokens), and under greedy decoding with these caps, raising its effort made that worse (medium: 51.4%; but see section 9: with the vendor-recommended sampling, max effort and a 100K budget it reaches 62.5% on the hard problems, so this conclusion was partly an artifact of greedy decoding and small caps). The gap shrinks from 19 points to 7 when Inkling is given 3× the token budget, so part of the 20K-cap gap is thinking budget, not capability.
+- Even so, Inkling finishes the same 70 problems 5× sooner. For hard problems you pay for DeepSeek's accuracy in wall-clock time and in a long prefill (big repo contexts will feel slow).
+- Caveats: 70 problems means ±5–6 points per model, so the 7-point gap is suggestive, not conclusive; LiveCodeBench v6 predates both models' training data, so contamination may inflate both; the 2-bit vs 4-bit labels describe weight storage, not equal quality or equal parameter counts (Inkling's parameter count is not published).
+- Practical rule: <strong>Inkling by default; switch to DeepSeek-1017 (<code>serve_deepseek41_1017.sh full</code>) for hard problems where being right matters more than being fast</strong>, ideally with a short context.</p>
+<h2>9. Best-case protocol: max effort, vendor sampling, big token budget (+ Qwen)</h2>
+<p>Sections 3 and 8 used greedy decoding (temperature 0) and small token caps. Every vendor recommends sampling instead (Inkling's <code>generation_config</code>: temperature 1.0; DeepSeek: temperature 1.0, top_p 1.0, max_tokens ≥ 256K; Qwen: temperature 0.6, top_p 0.95, top_k 20 for coding), and Inkling's own card warns of long reasoning loops. So this round gives each model its best shot on the 40 hard LiveCodeBench v6 problems (the ones where models differ), one sample each:</p>
+<table>
+<thead>
+<tr>
+<th>model (where it ran)</th>
+<th>sampling / effort</th>
+<th>budget</th>
+<th><strong>pass@1</strong> (95% CI)</th>
+<th>truncated</th>
+<th>mean tokens / problem</th>
+<th>single-stream decode</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>DeepSeek-V4.1-Flash-1017, 2-bit</strong> (both GPUs, llama.cpp, DSpark)</td>
+<td>T 1.0, top_p 1, effort <strong>max</strong></td>
+<td>150K</td>
+<td><strong>82.5%</strong> (70–92)</td>
+<td>1</td>
+<td><strong>24.6K</strong></td>
+<td>~104 tok/s</td>
+</tr>
+<tr>
+<td><strong>Qwen3.6-27B FP8</strong> (1 GPU, SGLang, MTP)</td>
+<td>T 0.6, top_p .95, top_k 20, thinking</td>
+<td>100K</td>
+<td>72.5% (57–85)</td>
+<td>0</td>
+<td>41.1K</td>
+<td>~125 tok/s</td>
+</tr>
+<tr>
+<td><strong>Inkling-2-Mini</strong> (1 GPU, SGLang, DSpark)</td>
+<td>T 1.0, effort <strong>max</strong></td>
+<td>100K</td>
+<td>62.5% (47–77)</td>
+<td>3</td>
+<td>37.4K</td>
+<td>~307 tok/s</td>
+</tr>
+<tr>
+<td>Qwen3.6-35B-A3B FP8 (1 GPU, MTP)</td>
+<td>T 0.6, top_p .95, top_k 20, thinking</td>
+<td>100K</td>
+<td>60.0% (45–75)</td>
+<td>2</td>
+<td>45.0K</td>
+<td>not measured</td>
+</tr>
+</tbody>
+</table>
+<p>Paired comparison (same 40 problems; problems one model solved and the other did not; exact McNemar test):
+- DeepSeek vs Inkling 9–1 (p = 0.02); DeepSeek vs Qwen3.6-35B-A3B 9–0 (p &lt; 0.01): <strong>DeepSeek is significantly better than both</strong>.
+- DeepSeek vs Qwen3.6-27B 5–1 (p = 0.22) and Qwen3.6-27B vs Inkling 5–1 (p = 0.22): suggestive, not significant at n = 40.
+- 34 of 40 problems are solved by at least one model, 20 by all four, 6 by none.</p>
+<p>What this says:
+- <strong>The protocol matters as much as the model.</strong> The same models scored far lower under greedy decoding with a 20K cap on the same problems: DeepSeek 62.5% → <strong>82.5%</strong> and Inkling 40% → <strong>62.5%</strong>. We changed effort, sampling and budget together, so we cannot say which of the three did the work. Evals that cap reasoning at a few thousand tokens badly understate these models.
+- <strong>DeepSeek-1017 (2-bit) is the strongest solver and also the most token-efficient</strong> (24.6K tokens per problem against 37–45K for the others; median 15K). At its ~104 tok/s that is ~4 minutes per problem, versus ~5.5 min for Qwen3.6-27B and ~2 min for Inkling. It needs both GPUs.
+- <strong>Qwen3.6-27B is the best single-GPU solver</strong> (72.5%, never truncated, ~125 tok/s with MTP, 29 GB weights), but it thinks very long even on easy problems (2.3K tokens per HumanEval problem against ~450 for Inkling at low effort), so it is a poor fit for quick questions.
+- <strong>Inkling at max effort remains the weakest of the big three on hard problems</strong> and the only one that still loops to the cap sometimes (3/40 at 100K), but it is the fastest per token. The MoE Qwen3.6-35B-A3B (3B active) is no better here.
+- At temperature 1.0 DeepSeek's DSpark acceptance falls (mean 2.3 tokens/step against 3.0 greedy), so its speed drops from 146 to ~104 tok/s. llama.cpp's <code>--spec-draft-sampling probabilistic</code> did not help.
+- Caveats: 40 problems and one sample at temperature 1.0 means wide intervals (±12–15 points); results are LiveCodeBench v6 (contests up to Apr 2025, likely in training data for all models); DeepSeek ran one request at a time while the others ran four in parallel, so wall times are not comparable (use tokens per problem and single-stream speed); we did not test agentic/repo-level coding.</p>
+<p><strong>Updated practical advice (two RTX PRO 6000):</strong>
+- Quick questions, assistant, tool calls: <strong>Inkling</strong> (TP2 ~450 tok/s, or GPU 0 alone).
+- Hardest coding problems, when you can wait: <strong>DeepSeek-1017 2-bit</strong> on both GPUs, with <code>reasoning_effort: "max"</code>, temperature 1.0, top_p 1.0 and a budget of 100K+ tokens.
+- One strong coder per GPU: <strong>Qwen3.6-27B</strong> (<code>deploy/serve_qwen.sh 27b &lt;gpu&gt; &lt;port&gt;</code>) next to Inkling or the DeepSeek Coder variant on the other GPU. Give reasoning models real token budgets; never judge them from a 4K cap.</p>
 <h2>Not done / next</h2>
 <ul>
 <li>A realistic agentic coding benchmark (SWE-bench-lite / aider-style) and long-context quality checks – the single-function evals here saturate.</li>
 <li>Kernel work on the small-M GEMMs and mhc kernels from §5.</li>
 <li>Re-test with Ethernet and with <code>--kv-cache-dtype</code> / memory settings if you need very long DeepSeek contexts (KV headroom is only ~5 GB/GPU).</li>
-</ul>
-</main><script defer src="../assets/analytics.js"></script>
-</body></html>
+</ul></div></details><footer>Charts are plain HTML/SVG: hover or focus a mark for its value, and every chart has a table view. Colour follows the model family throughout (blue DeepSeek, orange Qwen, aqua Inkling).</footer></main><div id="tip" role="tooltip" hidden></div><script>
+(function(){
+  var tip=document.getElementById('tip'); tip.hidden=true;
+  function fill(el){var p=(el.getAttribute('data-tip')||'').split('|');tip.textContent='';
+    var s=document.createElement('strong');s.textContent=p[0]||'';tip.appendChild(s);
+    if(p[1]){var sp=document.createElement('span');sp.textContent=p[1];tip.appendChild(sp);}}
+  function place(x,y){var w=tip.offsetWidth,h=tip.offsetHeight,nx=Math.min(x+14,window.innerWidth-w-8),ny=y+16;
+    if(ny+h>window.innerHeight-8)ny=y-h-12;tip.style.left=Math.max(8,nx)+'px';tip.style.top=Math.max(8,ny)+'px';}
+  document.querySelectorAll('[data-tip]').forEach(function(el){
+    el.addEventListener('pointerenter',function(e){fill(el);tip.hidden=false;place(e.clientX,e.clientY);});
+    el.addEventListener('pointermove',function(e){place(e.clientX,e.clientY);});
+    el.addEventListener('pointerleave',function(){tip.hidden=true;});
+    el.addEventListener('focus',function(){fill(el);tip.hidden=false;var r=el.getBoundingClientRect();place(r.left+r.width/2,r.top);});
+    el.addEventListener('blur',function(){tip.hidden=true;});
+  });
+  var b=document.getElementById('theme');
+  function apply(t){if(t){document.documentElement.setAttribute('data-theme',t);}else{document.documentElement.removeAttribute('data-theme');}}
+  try{var s=localStorage.getItem('rtx-theme');if(s)apply(s);}catch(e){}
+  b.addEventListener('click',function(){var cur=document.documentElement.getAttribute('data-theme');
+    var dark=cur?cur==='dark':window.matchMedia('(prefers-color-scheme: dark)').matches;var n=dark?'light':'dark';apply(n);
+    try{localStorage.setItem('rtx-theme',n);}catch(e){}});
+})();
+</script><script defer src="../assets/analytics.js"></script></body></html>
