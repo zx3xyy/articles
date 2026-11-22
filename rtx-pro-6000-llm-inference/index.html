@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Inkling and DeepSeek-V4-Flash on 2x RTX PRO 6000</title>
+<style>
+:root{--bg:#fff;--fg:#1c1c1e;--muted:#5b5f66;--line:#e3e5e8;--accent:#0b5fff;--code:#f4f5f7}
+@media (prefers-color-scheme: dark){:root{--bg:#101114;--fg:#e8e9ec;--muted:#9aa0a8;--line:#2a2d33;--accent:#6ea0ff;--code:#1a1c21}}
+body{background:var(--bg);color:var(--fg);font:16px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;margin:0}
+main{max-width:860px;margin:0 auto;padding:32px 16px 64px}
+h1{font-size:1.7rem;line-height:1.25} h2{margin-top:2.2rem;padding-bottom:.3rem;border-bottom:1px solid var(--line)} h3{margin-top:1.6rem}
+a{color:var(--accent)} code{background:var(--code);padding:.1em .35em;border-radius:4px;font-size:.9em}
+pre{background:var(--code);padding:12px;border-radius:6px;overflow-x:auto} pre code{padding:0;background:none}
+table{border-collapse:collapse;display:block;overflow-x:auto;max-width:100%;margin:1rem 0}
+th,td{border:1px solid var(--line);padding:6px 10px;text-align:left;vertical-align:top} th{background:var(--code)}
+</style></head><body><main>
+<h1>Running Inkling-2-Mini and DeepSeek-V4-Flash on 2× RTX PRO 6000 (SM120): coding + personal-assistant guide</h1>
+<p>Measured 2026-11-21/22 on this machine. All numbers are from runs logged in <code>logs/</code>, <code>evals/</code>, <code>NOTES.md</code>.</p>
+<h2>TL;DR</h2>
+<table>
+<thead>
+<tr>
+<th>Question</th>
+<th>Answer</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Best default model for you</td>
+<td><strong>Inkling-2-Mini, TP2, DSpark, <code>reasoning_effort: low</code></strong> – ~450 tok/s single-stream, 98.8% HumanEval, 15/15 tool calls, 0.24 s tool-call latency, 5-minute cold start</td>
+</tr>
+<tr>
+<td>Best way to split the 2 cards</td>
+<td><strong>TP2 (tensor parallel) for one user. PP2 is clearly worse. EP2 changes nothing.</strong> If you want two independent users/agents instead: one Inkling per GPU (~307 tok/s each)</td>
+</tr>
+<tr>
+<td>Is speculative decoding worth it for you (low batch)?</td>
+<td><strong>Yes – it is the single biggest lever: 2.0–2.2× (Inkling), 2.6–2.9× (DeepSeek)</strong> at batch 1, and it is lossless (identical accuracy)</td>
+</tr>
+<tr>
+<td>Is DeepSeek-V4-Flash worth running?</td>
+<td>It works (TP2+DSpark, 260–284 tok/s) but it ties Inkling on coding evals, is ~40% slower, uses <em>all</em> 192 GB, and leaves ~5 GB/GPU headroom. Use it only if you need its larger knowledge; otherwise Inkling</td>
+</tr>
+<tr>
+<td>#1 quality lever</td>
+<td><strong>Reasoning effort.</strong> Inkling's default effort over-thinks and fails by running out of tokens; <code>low</code> is +7 points on HumanEval and 2.4× faster</td>
+</tr>
+<tr>
+<td>Couldn't do</td>
+<td><code>DeepSeek-V4.1-Flash-1017</code> – no NVFP4 build exists and the official weights are 510 GB. We ran <code>V4-Flash-0731</code> NVFP4 (164 GB) instead</td>
+</tr>
+</tbody>
+</table>
+<h2>1. Setup that worked</h2>
+<ul>
+<li>Hardware: 2× NVIDIA RTX PRO 6000 Blackwell Max-Q (SM120, 96 GB each), <strong>no NVLink</strong>; <code>nvidia-smi topo -p2p r</code> shows P2P OK. AMD EPYC host (48 threads, 125 GB RAM).</li>
+<li>Software: Docker image <code>lmsysorg/sglang:inkling-2-mini</code> (sglang <code>03fde9cc3</code> + SM120 kernels, torch 2.14.1+cu130, FlashInfer 0.7.4 with <code>sm120f</code> kernels). Note the image is <em>not</em> upstream: it carries SM120-only kernels that upstream lacks, so don't swap in an upstream checkout.</li>
+<li>Launch scripts (tested end to end): <code>deploy/serve_inkling.sh {tp2|replicas|gpu0|stop}</code>, <code>deploy/serve_deepseek.sh [stop]</code>.</li>
+<li>Only one patch was needed (<code>deploy/patches/sm120_draft_moe.diff</code>, 1 file): the DeepSeek DSpark draft head hard-wired an SM100-only TRT-LLM MoE kernel for its MXFP4 layers; on SM120 it now uses the FlashInfer CUTLASS MXFP8×MXFP4 path (already present in the image for the non-hybrid path).</li>
+<li>DeepSeek on SM120 <strong>requires <code>--moe-runner-backend flashinfer_cutlass</code></strong>. The auto-selected <code>flashinfer_trtllm_routed</code> crashes (cubins exist only for SM100/103/107 — the NVIDIA model card was validated on B200).</li>
+<li>DSpark draft length is fixed by the checkpoint (<code>num_draft_tokens = gamma+1</code>: 8 for Inkling, 6 for DeepSeek) – not tunable.</li>
+<li>Method note: perf/kernel work was started on <code>--load-format dummy</code> weights while the 164 GB download ran (the download was Wi-Fi limited at 15–20 MB/s for hours; plugging in Ethernet would help). All headline numbers below were re-measured on real weights.</li>
+</ul>
+<h2>2. Parallelism results</h2>
+<h3>DeepSeek-V4-Flash-0731-NVFP4 (weights ≈ 79 GB/GPU in TP2)</h3>
+<p>Step latency, random tokens, 1024 in / 256 out (dummy weights – step cost does not depend on weight values):</p>
+<table>
+<thead>
+<tr>
+<th>config</th>
+<th>conc 1 ms/token (tok/s)</th>
+<th>conc 4 ms/token (tok/s total)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>TP2</td>
+<td>9.74 (98.6)</td>
+<td>10.37 (351)</td>
+</tr>
+<tr>
+<td>TP2 + EP2</td>
+<td>9.70 (99.1)</td>
+<td>10.34 (346)</td>
+</tr>
+<tr>
+<td>PP2</td>
+<td>14.05 (69.1)</td>
+<td>16.24 (232)</td>
+</tr>
+</tbody>
+</table>
+<p>Same ordering on <strong>real weights</strong>, real prompts (HumanEval first 40, no thinking, aggregate output tok/s):</p>
+<table>
+<thead>
+<tr>
+<th>config</th>
+<th>conc 1</th>
+<th>conc 4</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>TP2</td>
+<td>96.4</td>
+<td>262</td>
+</tr>
+<tr>
+<td>PP2</td>
+<td>69.0</td>
+<td>180</td>
+</tr>
+<tr>
+<td><strong>TP2 + DSpark</strong></td>
+<td><strong>284.0</strong></td>
+<td><strong>470</strong></td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li>PP2 is slower because a single stream traverses the GPUs one after the other (one GPU's bandwidth), and PP only helps once the batch is large enough to fill both stages.</li>
+<li>TP2 over PCIe is <strong>not</strong> communication-bound: the custom all-reduce costs ~10 µs/call, ~1 ms of a ~10 ms step; that is why EP2 (fewer all-reduces) changes nothing.</li>
+<li>Per-token time is nearly flat from batch 1→4, i.e. a step is kernel-latency-bound, which is exactly why speculative decoding (verify several tokens per step) is so effective.</li>
+<li>DSpark mean accepted length on real code prompts: <strong>4.3 tokens/step</strong>.</li>
+</ul>
+<h3>Inkling-2-Mini (19.5 GB – fits on one GPU)</h3>
+<p>HumanEval first 40, <code>reasoning_effort: low</code>, aggregate output tok/s:</p>
+<table>
+<thead>
+<tr>
+<th>config</th>
+<th>conc 1</th>
+<th>conc 4</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1 GPU, no spec</td>
+<td>148</td>
+<td>372</td>
+</tr>
+<tr>
+<td>1 GPU, DSpark</td>
+<td>307</td>
+<td>720</td>
+</tr>
+<tr>
+<td><strong>2 GPUs (TP2), DSpark</strong></td>
+<td><strong>451</strong></td>
+<td><strong>1011</strong></td>
+</tr>
+<tr>
+<td>2 × 1-GPU replicas, DSpark</td>
+<td>307 <em>per user</em> (2 users)</td>
+<td>720 <em>per server</em></td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li>For one user TP2 beats one GPU by +47% at batch 1: Inkling is small so TP all-reduces are cheap, and it halves per-GPU weight reads.</li>
+<li>Mean accepted length on Inkling ≈ 4.1 of 8.</li>
+<li>If you run several agents/tools concurrently, two independent replicas give twice the aggregate throughput of one TP2 server at conc 1, but each stream is slower.</li>
+</ul>
+<h2>3. Coding evals (pass@1, greedy, single sample)</h2>
+<p>Harness: <code>evals/gen.py</code> (chat API) + <code>evals/score.py</code> (programs executed in a <code>--network none</code> container). Verified: canonical solutions score 100% on all four sets. HumanEval+/MBPP+ are EvalPlus (many more tests per task).</p>
+<table>
+<thead>
+<tr>
+<th>model / mode</th>
+<th>HumanEval+</th>
+<th>MBPP+</th>
+<th>HumanEval</th>
+<th>MBPP</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Inkling, default effort</td>
+<td>–</td>
+<td>–</td>
+<td>91.5%</td>
+<td>91.1%</td>
+</tr>
+<tr>
+<td>Inkling, <strong>low</strong></td>
+<td>92.7%</td>
+<td>83.3%</td>
+<td>98.8%</td>
+<td>95.3%</td>
+</tr>
+<tr>
+<td>Inkling, medium</td>
+<td>93.3%</td>
+<td>83.1%</td>
+<td>98.2%</td>
+<td>–</td>
+</tr>
+<tr>
+<td>DeepSeek, no thinking (default)</td>
+<td>83.5%</td>
+<td>78.0%</td>
+<td>88.4%</td>
+<td>88.7%</td>
+</tr>
+<tr>
+<td>DeepSeek, <strong>low</strong></td>
+<td>93.9%</td>
+<td>81.0%</td>
+<td>98.2%</td>
+<td>94.6%</td>
+</tr>
+</tbody>
+</table>
+<p>Read this carefully:
+- <strong>Default-effort Inkling "fails" mostly by running past 6000 tokens without answering</strong> (14/164 on HumanEval, 23/257 on MBPP – every non-harness failure). <code>low</code> fixes it and is also 2.4× faster (303 s vs 721 s for HumanEval at conc 1, 552 vs 1389 tokens/problem). <code>medium</code> costs 1.5× more tokens for no gain on the harder sets.
+- DeepSeek without thinking is ~10 points worse; turn thinking on (<code>reasoning_effort: low</code>) for code.
+- With 164–378 problems, the 95% CI is roughly ±4–5 points, so <strong>Inkling-low and DeepSeek-low are statistically tied</strong> on these sets.
+- Caveats: HumanEval/MBPP are saturated and likely contaminated; they say nothing about agentic/repo-level coding (SWE-bench-style) or long-horizon work. Treat as a smoke test, not a ranking.
+- DSpark does not change accuracy: Inkling default effort 91.5% (DSpark) vs 92.1% (no spec) on HumanEval, within noise of each other (different kernels → different greedy trajectories).</p>
+<h2>4. Personal-assistant checks</h2>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>Inkling (low)</th>
+<th>DeepSeek (none / low)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Tool calling (15 prompts: 12 tool + 3 abstain; <code>evals/toolcall.py</code>)</td>
+<td>15/15, 0.24 s</td>
+<td>15/15 / 15/15, 0.6–1.4 s</td>
+</tr>
+<tr>
+<td>Prefill TTFT 1k / 8k / 32k / 64k tokens (conc 1)</td>
+<td>0.10 / 0.41 / 1.4 / 2.0 s</td>
+<td>0.13 / 0.56 / 1.9 / 2.9 s</td>
+</tr>
+</tbody>
+</table>
+<p>(DeepSeek's very first request after idle can take ~1 s; that is warm-up.)</p>
+<h2>5. Where the time goes (DeepSeek TP2 decode, profile)</h2>
+<p>GPU is kernel-bound, not launch-bound (kernel time ≈ step time): GEMM/GEMV 56% (FP8 linear ~3.2 ms, MoE grouped GEMM ~2.1 ms, <strong>bf16 small-M cuBLAS/CUTLASS-80 WMMA GEMMs ~3.7 ms of ~15 ms</strong>), attention 8%, hyper-connection 4%, router 3%, all-reduce 7%. The image already ships an SM120 low-M bf16 GEMV that only triggers for N ≥ 2048; the router/projection GEMMs with smaller N still go to the generic WMMA kernels — that, and the mhc/elementwise kernels, are the candidates if you want to push beyond the current ~10 ms/step (no change was made).</p>
+<h2>6. Recommendations</h2>
+<p><strong>Daily coding + assistant (one user):</strong>
+<code>deploy/serve_inkling.sh tp2</code>, send <code>{"reasoning_effort":"low"}</code>, temperature 0 for code, always set <code>max_tokens</code> (Inkling can ramble at higher effort). ~450 tok/s, sub-second tool calls, the 19.5 GB of weights (~10 GB per GPU under TP2) leave ~80 GB per GPU for KV cache and other work.</p>
+<p><strong>Several agents / IDE + background jobs at once:</strong> <code>deploy/serve_inkling.sh replicas</code> (one per GPU) or run one server on GPU 0 and use GPU 1 for something else (embeddings, image/vision model, a second model).</p>
+<p><strong>When to switch to DeepSeek:</strong> only for knowledge-heavy or very-long-context work where a 300B-total model is worth 40% lower speed, a 6-minute swap (<code>serve_deepseek.sh</code>, it occupies both GPUs and leaves ~5 GB/GPU free for KV), and no co-resident models. Use <code>reasoning_effort: low</code>; its default non-thinking mode drops ~10 coding points.</p>
+<p><strong>Don't bother with:</strong> PP2, EP2, or hand-tuning the draft length (fixed by the checkpoint).</p>
+<p><strong>Housekeeping:</strong> both servers use <code>--restart unless-stopped</code>; run <code>serve_*.sh stop</code> before launching the other model (both want the GPUs). Weights and the image are cached in <code>~/.cache/huggingface</code> and Docker, so restarts take ~5–6 minutes (DeepSeek) / ~5 minutes (Inkling TP2), dominated by CUDA-graph capture and kernel autotune.</p>
+<h2>Not done / next</h2>
+<ul>
+<li>A realistic agentic coding benchmark (SWE-bench-lite / aider-style) and long-context quality checks – the single-function evals here saturate.</li>
+<li>Kernel work on the small-M GEMMs and mhc kernels from §5.</li>
+<li>Re-test with Ethernet and with <code>--kv-cache-dtype</code> / memory settings if you need very long DeepSeek contexts (KV headroom is only ~5 GB/GPU).</li>
+</ul>
+</main><script defer src="../assets/analytics.js"></script>
+</body></html>
